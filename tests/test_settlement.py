@@ -91,12 +91,12 @@ def test_blackjack_odd_stake_five_truncates_payout() -> None:
     assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=12)
 
 
-def test_blackjack_stake_one_returns_only_stake() -> None:
+def test_blackjack_stake_one_returns_stake_plus_one_chip_win() -> None:
     result = settle(
         _cards(Rank.ACE, Rank.KING), _cards(Rank.KING, Rank.QUEEN), stake=1
     )
 
-    assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=1)
+    assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=2)
 
 
 def test_dealer_blackjack_beats_player_twenty() -> None:

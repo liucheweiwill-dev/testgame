@@ -1,4 +1,4 @@
-# SPEC — 001 domain core (Tier 3), revision 2
+# SPEC — 001 domain core (Tier 3), revision 3
 
 ## Goal
 
@@ -138,7 +138,7 @@ neither is bust, and their totals are equal. Nothing else pushes.
 | blackjack | 21 on three cards | `PLAYER_BLACKJACK` | `25` |
 | blackjack | 20 | `PLAYER_BLACKJACK` | `25` |
 | **blackjack, stake 5** | 20 | `PLAYER_BLACKJACK` | **`12`** — `5 + 5*3//2` |
-| **blackjack, stake 1** | 20 | `PLAYER_BLACKJACK` | **`1`** — `1 + 0` |
+| **blackjack, stake 1** | 20 | `PLAYER_BLACKJACK` | **`2`** — `1 + 1*3//2`, and `1*3//2` is `1`, not `0` |
 | 20 | blackjack | `DEALER_WINS` | `0` |
 | 20 | 19 | `PLAYER_WINS` | `20` |
 | 19 | 20 | `DEALER_WINS` | `0` |
@@ -226,7 +226,8 @@ PROJECT.md                           except the Mutation row
   requires a further revision and re-approval.
 - **Files the gauntlet adds:** `coverage.xml` and the caches already in
   `.gitignore`. Nothing new needs ignoring.
-- **Checkpoints:** the two AGENTS.md §12 requires, no more.
+- **Checkpoints:** the two AGENTS.md §12 requires, no more. **Claude makes
+  them**, not Codex — see the execution split below.
 - Branch `task/001-domain-core`, from `main`.
 
 ## Acceptance tests
@@ -263,6 +264,13 @@ uv run ruff check --select F401,F811,F841 . && uv run vulture src tests
 uv run lint-imports
 ```
 
+**Claude runs these, not Codex.** Codex's `workspace-write` sandbox cannot
+execute `uv`, which lives outside the workspace, and cannot write `.git` — so it
+can neither run the gauntlet as specified nor make a checkpoint commit. Codex
+writes the code; Claude executes the gauntlet and records the results. Neither
+side can assert an outcome the other did not produce, which suits the double
+track better than the original split did.
+
 Mutation is `CI only` here — mutmut has no native Windows support. Record it
 under "Layers not run as specified — CI only, not reproduced here", never as
 skipped, and state that the new results gate is therefore unverified locally.
@@ -286,10 +294,24 @@ skipped, and state that the new results gate is therefore unverified locally.
 ## Human approval
 
 Revision 1: superseded, never approved.
-Revision 2: **approved by Will, 2026-08-28**, after the Codex feasibility review
-and the nine changes listed below.
+Revision 2: approved by Will, 2026-08-28; superseded by revision 3.
+Revision 3: **approved by Will, 2026-08-28**.
 
 ## Revisions
+
+**Revision 3** — three findings from the implementation attempt:
+
+- **The stake-1 scenario was arithmetically wrong.** `1 * 3 // 2` is `1`, not
+  `0`, so the payout is `2`. Codex left the test RED and reported the
+  contradiction instead of bending the implementation to a false SPEC — which is
+  what a boundary scenario is for, even when the boundary catches its author.
+- **Codex cannot make checkpoint commits.** Its sandbox refuses writes to
+  `.git`, which is a deliberate protection and not something to relax for
+  convenience. Checkpoints move to Claude.
+- **Codex cannot run the gauntlet as specified.** `uv` lives outside the
+  workspace and the sandbox will not execute it. Codex declined to substitute
+  the `.venv` binaries and call them the specified commands, which is the
+  correct reading of the rule. Execution moves to Claude.
 
 **Revision 2** — rewritten after the Codex feasibility review raised ten
 findings, nine accepted:
