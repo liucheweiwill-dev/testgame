@@ -1,7 +1,7 @@
 # SETUP.md — Installing a Claude + Codex workstation
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.1.0 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.3.0 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- ============================================================ -->
@@ -31,9 +31,17 @@ baseline repository.
 | Claude Code | see its own docs | — | — |
 | Codex CLI | `codex --version` | see its own docs | — |
 
-**Codex on PATH.** The desktop-app build installs the CLI under a content-hashed
-directory that **changes on every update**. Never hard-code that path in a
-script or config. Resolve it at run time, or install the standalone CLI.
+**Neither agent's CLI is guaranteed to be on PATH.**
+
+- *Codex*: the desktop-app build installs the CLI under a content-hashed
+  directory that **changes on every update**. Never hard-code that path in a
+  script or config. Resolve it at run time, or install the standalone CLI.
+- *Claude Code*: a desktop-app install may expose no `claude` command at all, so
+  `claude mcp list` and similar checks are simply unavailable. Verify its MCP
+  servers from inside an interactive session (`/mcp`) or by reading the project's
+  `.mcp.json`, and do not treat the missing command as a broken installation.
+
+A check that cannot run is a finding to report, not a line to work around.
 
 Verify Codex can reach a model before continuing:
 
@@ -277,6 +285,12 @@ tools. Fill the actual commands into `PROJECT.md`. If a
 layer has no tool in your language, write `not available` and the reason —
 that becomes the Structural blind spot in every EVIDENCE report.
 
+**A tool can exist and still not run where you are.** Some of the tools below
+are unavailable on some platforms — mutmut on Windows is the one this baseline
+has actually hit — so a layer can be runnable in CI and not on the workstation.
+That is the `CI only` state in `AGENTS.md` §5. Record it as such, rather than
+pretending either that the layer works everywhere or that it does not exist.
+
 One rule outranks tool choice: **a layer must be able to fail.** A coverage run
 without a threshold flag prints a number and exits 0 — it is decoration, not a
 layer.
@@ -305,7 +319,7 @@ pip install pytest mypy ruff pytest-cov diff-cover mutmut hypothesis vulture imp
 | Types | mypy / pyright | `mypy <pkg>` |
 | Lint + format | ruff | `ruff check . && ruff format --check .` |
 | Changed-line coverage | coverage.py + diff-cover | `pytest --cov=<pkg> --cov-branch --cov-report=xml && diff-cover coverage.xml --compare-branch=<base> --fail-under=<n>` |
-| Mutation | mutmut | `mutmut run` — then `mutmut results`; survivors fail the layer |
+| Mutation | mutmut | `mutmut run` — then `mutmut results`; survivors fail the layer. **Does not run natively on Windows** — it exits telling you to use WSL. On a Windows workstation record this layer as `CI only` and run it in CI on Linux. |
 | Property | hypothesis | runs inside `pytest`; the layer is "the suite contains `@given` properties for the invariants in the SPEC" |
 | Cleanup | ruff + vulture | `ruff check --select F401,F811,F841 . && vulture <pkg>` |
 

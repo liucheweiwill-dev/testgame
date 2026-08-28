@@ -1,17 +1,8 @@
 # PROJECT.md — this project's values
 
 <!-- ============================================================ -->
-<!-- PROJECT LAYER. This file is yours; the baseline never edits   -->
-<!-- it and an update never overwrites it.                         -->
-<!--                                                               -->
-<!-- The required fields are defined in AGENTS.md §14. After a      -->
-<!-- baseline update, reconcile this file against that list:        -->
-<!-- append any missing field as a placeholder in the same form as  -->
-<!-- the ones below, then fill it in.                               -->
-<!--                                                               -->
-<!-- Any placeholder left unfilled is a setup defect. This comment  -->
-<!-- block deliberately avoids writing the placeholder token, so    -->
-<!-- that counting it in this file counts only real blanks.         -->
+<!-- This file holds answers, not instructions. How to fill each   -->
+<!-- field is in AGENTS.md §14, which is overwritten on update.    -->
 <!-- ============================================================ -->
 
 ## Project
@@ -54,10 +45,6 @@ uv run mypy src                       # typecheck
 
 ## Gauntlet commands
 
-One command per layer. Delete no row: if a layer cannot run in this project,
-write `not available` and the reason — that row becomes the Structural blind
-spot in every EVIDENCE report, and CI wires only the rows that have commands.
-
 | Layer | Command |
 |---|---|
 | Tests | `uv run pytest -q` |
@@ -71,20 +58,12 @@ spot in every EVIDENCE report, and CI wires only the rows that have commands.
 Architecture check: `uv run lint-imports` (import-linter; the contract lives in
 `ARCHITECTURE.md` and is configured in `pyproject.toml`)
 
-See `SETUP.md` §4 for per-language tool suggestions and install commands.
-
 ## Branches
 
 - Main branch: `main`
 - Task branch naming: `task/<NNN-kebab-slug>`
 
-Checkpoints are commits on the task branch (AGENTS.md §12). Nothing reaches the
-main branch without human authorisation.
-
 ## Agent models
-
-Model names and effort levels change often and differ per account, so they live
-here. The rules they must satisfy are in AGENTS.md §11.
 
 | Role | Model | Reasoning effort |
 |---|---|---|

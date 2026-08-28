@@ -1,7 +1,7 @@
 # AGENTS.md — Dual-Agent Development Baseline
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.1.0 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.3.0 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- To update: replace this whole file verbatim. Never merge.     -->
@@ -131,6 +131,20 @@ and nothing else. Tier 2 and Tier 3 run all seven. There is no partial set in
 between: a change that needs a third layer is not Tier 1, and the Tier is what
 moves (§3), not the layer list.
 
+**Where a layer runs is part of its definition.** Each row in `PROJECT.md` is in
+one of three states, and the third exists because a tool can be real and still
+refuse to run on the machine you are sitting at:
+
+| State | Meaning |
+|---|---|
+| a command | runs on the workstation and in CI |
+| **`CI only`** | the tool does not run on this workstation's platform, but does run in CI. Name the platform limit. |
+| `not available` | no tool fills this layer in this project at all. Name why. |
+
+A `CI only` layer is **not** a skipped layer and **not** a blind spot: it ran,
+somewhere, and the EVIDENCE says where. Treating it as either understates or
+overstates what was actually checked.
+
 **Cleanup asks one question:** *What code became unnecessary because of this
 change?* A replacement implementation must remove the superseded code in the
 same change unless backward compatibility is explicitly required.
@@ -148,9 +162,11 @@ EVIDENCE replaces any other completion report. Required sections:
                                 N/A (Tier 1) | N/A (single-agent)
 ## Spec -> Test mapping         every scenario and every "Must NOT" -> a test, a layer,
                                 or an explicit skipped-with-reason line. Never silently absent.
-## Gauntlet                     final fresh run, per layer, with the command and its output
+## Gauntlet                     final fresh run, per layer, with the command, where it
+                                ran (workstation or CI), and its output
 ## Independent verification     Tier 3; if not performed, say so explicitly
-## Layers not run as specified  split three ways: not applicable / not available / skipped
+## Layers not run as specified  split four ways: not applicable / not available /
+                                CI only, not reproduced here / skipped
 ## Dismissed review findings    one line each, with the reason
 ## Structural blind spot        a layer this project cannot run at all
 ## Honest notes                 anything that lowers the confidence this report can claim
@@ -406,3 +422,27 @@ Nothing in `PROJECT.md` is optional. A field that does not apply is filled with
 `not available` or `none` and a reason — never deleted, never left blank. A
 deleted row is indistinguishable from an oversight; a stated `none` is a
 decision.
+
+**`PROJECT.md` carries no instructions, only answers.** Everything about *how*
+to fill it in lives here, because this file is overwritten on update and that
+one is not. Guidance written into `PROJECT.md` would freeze at whatever release
+created the project and then quietly contradict this section — a form that
+disagrees with its own instructions, with nothing to detect the drift. That is
+also why reconciliation compares sections and not prose: there is no prose there
+to compare.
+
+How to fill each field:
+
+- **Gauntlet commands** — one row per layer in §5, in one of the three states
+  defined there: a command, `CI only` with the platform limit named, or `not
+  available` with the reason. Delete no row. Add the architecture check as its
+  own line. `SETUP.md` §4 suggests tools and gives install commands per
+  language.
+- **Changed-line coverage** needs both a comparison base and a threshold, or it
+  cannot fail and is not a layer.
+- **Cleanup** must exit non-zero on findings; a report-only run is not a layer.
+- **Agent models** — the verifier is a different model that a human has judged
+  to be at least the builder's equal (§11). Record the judgement, not an
+  inference from the name.
+- **Project-specific safety** — anything beyond §10. Write `none` if there is
+  nothing; do not leave it empty.
