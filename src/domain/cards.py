@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import cast
 
 
 class Rank(Enum):
@@ -34,4 +35,4 @@ class Card:
 def card_value(rank: Rank) -> int:
     if rank is Rank.ACE:
         return 11
-    return min(rank.value, 10)
+    return min(cast(int, rank.value), 10)

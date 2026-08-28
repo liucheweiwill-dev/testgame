@@ -31,9 +31,7 @@ def dealer_should_hit(cards: Sequence[Card], rule: DealerRule) -> bool:
     )
 
 
-def settle(
-    player: Sequence[Card], dealer: Sequence[Card], stake: int
-) -> Settlement:
+def settle(player: Sequence[Card], dealer: Sequence[Card], stake: int) -> Settlement:
     if is_bust(player):
         return Settlement(Outcome.DEALER_WINS, returned=0)
 
@@ -42,9 +40,7 @@ def settle(
     if player_blackjack and dealer_blackjack:
         return Settlement(Outcome.PUSH, returned=stake)
     if player_blackjack:
-        return Settlement(
-            Outcome.PLAYER_BLACKJACK, returned=stake + stake * 3 // 2
-        )
+        return Settlement(Outcome.PLAYER_BLACKJACK, returned=stake + stake * 3 // 2)
     if dealer_blackjack:
         return Settlement(Outcome.DEALER_WINS, returned=0)
     if is_bust(dealer):

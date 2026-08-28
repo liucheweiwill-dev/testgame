@@ -15,9 +15,7 @@ def _cards(*ranks: Rank) -> list[Card]:
 
 def test_dealer_hard_seventeen_stands_under_s17() -> None:
     assert (
-        dealer_should_hit(
-            _cards(Rank.KING, Rank.SEVEN), DealerRule.STAND_ON_SOFT_17
-        )
+        dealer_should_hit(_cards(Rank.KING, Rank.SEVEN), DealerRule.STAND_ON_SOFT_17)
         is False
     )
 
@@ -38,8 +36,7 @@ def test_dealer_soft_seventeen_stands_under_s17() -> None:
 
 def test_dealer_soft_seventeen_hits_under_h17() -> None:
     assert (
-        dealer_should_hit(_cards(Rank.ACE, Rank.SIX), DealerRule.HIT_ON_SOFT_17)
-        is True
+        dealer_should_hit(_cards(Rank.ACE, Rank.SIX), DealerRule.HIT_ON_SOFT_17) is True
     )
 
 
@@ -58,9 +55,7 @@ def test_dealer_eighteen_stands_under_either_rule() -> None:
 
 
 def test_both_blackjack_pushes() -> None:
-    result = settle(
-        _cards(Rank.ACE, Rank.KING), _cards(Rank.ACE, Rank.QUEEN), stake=10
-    )
+    result = settle(_cards(Rank.ACE, Rank.KING), _cards(Rank.ACE, Rank.QUEEN), stake=10)
 
     assert result == Settlement(Outcome.PUSH, returned=10)
 
@@ -84,17 +79,13 @@ def test_blackjack_beats_twenty() -> None:
 
 
 def test_blackjack_odd_stake_five_truncates_payout() -> None:
-    result = settle(
-        _cards(Rank.ACE, Rank.KING), _cards(Rank.KING, Rank.QUEEN), stake=5
-    )
+    result = settle(_cards(Rank.ACE, Rank.KING), _cards(Rank.KING, Rank.QUEEN), stake=5)
 
     assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=12)
 
 
 def test_blackjack_stake_one_returns_stake_plus_one_chip_win() -> None:
-    result = settle(
-        _cards(Rank.ACE, Rank.KING), _cards(Rank.KING, Rank.QUEEN), stake=1
-    )
+    result = settle(_cards(Rank.ACE, Rank.KING), _cards(Rank.KING, Rank.QUEEN), stake=1)
 
     assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=2)
 

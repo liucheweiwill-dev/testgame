@@ -5,8 +5,9 @@ from hypothesis import strategies as st
 from domain.cards import Card, Rank, Suit, card_value
 from domain.hand import hand_total, is_soft
 
-
-cards = st.builds(Card, rank=st.sampled_from(tuple(Rank)), suit=st.sampled_from(tuple(Suit)))
+cards = st.builds(
+    Card, rank=st.sampled_from(tuple(Rank)), suit=st.sampled_from(tuple(Suit))
+)
 non_ace_cards = st.builds(
     Card,
     rank=st.sampled_from(tuple(rank for rank in Rank if rank is not Rank.ACE)),
@@ -17,7 +18,9 @@ non_ace_cards = st.builds(
 @pytest.mark.property
 @given(hand=st.lists(cards, min_size=1, max_size=10))
 def test_hand_total_stays_between_hard_and_soft_sums(hand: list[Card]) -> None:
-    hard_sum = sum(1 if card.rank is Rank.ACE else card_value(card.rank) for card in hand)
+    hard_sum = sum(
+        1 if card.rank is Rank.ACE else card_value(card.rank) for card in hand
+    )
     soft_sum = sum(card_value(card.rank) for card in hand)
 
     assert hard_sum <= hand_total(hand) <= soft_sum

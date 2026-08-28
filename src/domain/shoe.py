@@ -13,10 +13,7 @@ class Shoe:
             raise ValueError("decks must be at least 1")
 
         self._cards = [
-            Card(rank, suit)
-            for _ in range(decks)
-            for rank in Rank
-            for suit in Suit
+            Card(rank, suit) for _ in range(decks) for rank in Rank for suit in Suit
         ]
         random.Random(seed).shuffle(self._cards)
 

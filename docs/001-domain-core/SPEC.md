@@ -1,4 +1,4 @@
-# SPEC — 001 domain core (Tier 3), revision 3
+# SPEC — 001 domain core (Tier 3), revision 4
 
 ## Goal
 
@@ -189,9 +189,10 @@ src/domain/hand.py          new
 src/domain/shoe.py          new
 src/domain/settlement.py    new
 tests/                      new tests, including tests marked `property`
-pyproject.toml              vulture min_confidence and paths; mutmut scope if needed
-PROJECT.md                  Mutation row only — add the results gate
-.github/workflows/gauntlet.yml   Mutation step only — add the results gate
+pyproject.toml              vulture min_confidence, paths and whitelist; mutmut scope
+tests/vulture_whitelist.py  new — see the Cleanup note below
+PROJECT.md                  Mutation and Cleanup rows
+.github/workflows/gauntlet.yml   Mutation and Cleanup steps
 ```
 
 Deleted: `src/domain/scaffold.py`, `tests/test_scaffold.py`,
@@ -208,6 +209,19 @@ unused-function and unused-class findings, which carry 60. Lower the threshold,
 scan tests alongside `src`, and prove the gate works with a deliberately dead
 function that is removed once the layer has been seen to fail on it.
 
+**At 60 it also reports what it structurally cannot see.** Enum members reached
+by iteration and dataclass fields reached by attribute access look unused to
+vulture. They are handled by `tests/vulture_whitelist.py`, and that file is
+governed by one rule:
+
+> Only names the tool cannot see may go in the whitelist — enum members,
+> dataclass fields, protocol implementations. A name that is genuinely unused
+> today, and might be used later, may **not**. The first kind keeps the layer
+> honest; the second is how a layer decays into decoration, one exemption at a
+> time.
+
+Every entry carries a comment naming which of the permitted categories it is.
+
 ## Do not modify
 
 ```
@@ -216,8 +230,8 @@ ARCHITECTURE.md                      the dependency contract
 .gitignore  .mcp.json                
 uv.lock                              no new dependency is approved
 docs/development-status.md           Claude writes this at step 10
-PROJECT.md                           except the Mutation row
-.github/workflows/gauntlet.yml       except the Mutation step
+PROJECT.md                           except the Mutation and Cleanup rows
+.github/workflows/gauntlet.yml       except the Mutation and Cleanup steps
 ```
 
 ## Setup plan
@@ -295,9 +309,18 @@ skipped, and state that the new results gate is therefore unverified locally.
 
 Revision 1: superseded, never approved.
 Revision 2: approved by Will, 2026-08-28; superseded by revision 3.
-Revision 3: **approved by Will, 2026-08-28**.
+Revision 3: approved by Will, 2026-08-28; superseded by revision 4.
+Revision 4: **approved by Will, 2026-08-28**.
 
 ## Revisions
+
+**Revision 4** — the Cleanup repair in revision 2 lowered vulture's confidence
+to 60, which surfaced four findings the tool cannot resolve: three `Suit` enum
+members reached only by iteration, and a dataclass field reached only by
+attribute access. The human chose a whitelist over dropping vulture, so the
+scope grows by one file and the Cleanup row of `PROJECT.md` and the workflow.
+The whitelist's admission rule is written into the Files section, because a
+whitelist without one stops being a whitelist and becomes an amnesty.
 
 **Revision 3** — three findings from the implementation attempt:
 

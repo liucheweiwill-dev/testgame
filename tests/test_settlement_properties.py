@@ -6,8 +6,9 @@ from domain.cards import Card, Rank, Suit
 from domain.hand import hand_total, is_blackjack, is_bust
 from domain.settlement import Outcome, settle
 
-
-cards = st.builds(Card, rank=st.sampled_from(tuple(Rank)), suit=st.sampled_from(tuple(Suit)))
+cards = st.builds(
+    Card, rank=st.sampled_from(tuple(Rank)), suit=st.sampled_from(tuple(Suit))
+)
 hands = st.lists(cards, max_size=6)
 
 
