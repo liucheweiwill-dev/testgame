@@ -28,6 +28,13 @@ other rule is fixed, deliberately, to keep the combination space testable.
 exist to populate the table. A 300-cell strategy table would dominate the
 mutation-testing signal with trivial lookup mutations and add no structure.
 
+**2026-08-28 — The Mutation layer runs in CI only.** mutmut refuses to run
+natively on Windows and directs the user to WSL. Since the workstations here are
+Windows, mutation is unavailable locally and available in CI on `ubuntu-latest`.
+Seven of the eight layers were run locally and passed; mutation was not. Every
+EVIDENCE report written on a Windows workstation records mutation under "Layers
+not run as specified — not available", not under "skipped".
+
 **2026-08-28 — Bootstrapped from the ai-sw-baseline general layer v2.1.0.**
 This project is also the baseline's first real execution; defects found while
 running `BOOTSTRAP.md` are reported back to that repository.

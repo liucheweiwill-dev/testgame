@@ -64,7 +64,7 @@ spot in every EVIDENCE report, and CI wires only the rows that have commands.
 | Types | `uv run mypy src` |
 | Lint + format | `uv run ruff check . && uv run ruff format --check .` |
 | Changed-line coverage | `uv run pytest --cov=src --cov-branch --cov-report=xml && uv run diff-cover coverage.xml --compare-branch=main --fail-under=100` |
-| Mutation | `uv run mutmut run` — scoped to `src/domain` via `[tool.mutmut] paths_to_mutate`; the layer fails if any mutant survives |
+| Mutation | `uv run mutmut run` — scoped to `src/domain` via `[tool.mutmut] paths_to_mutate`; the layer fails if any mutant survives. **CI only.** mutmut has no native Windows support and refuses to run on a Windows workstation, so on Windows this layer is `not available` locally and every EVIDENCE report written there must say so. It does run in CI (`ubuntu-latest`) and in WSL. |
 | Property-based | `uv run pytest -m property -q` — pytest exits 5 when nothing is collected, so the layer fails if no property tests exist |
 | Cleanup | `uv run ruff check --select F401,F811,F841 . && uv run vulture src` |
 
