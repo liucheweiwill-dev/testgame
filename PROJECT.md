@@ -67,17 +67,33 @@ Architecture check: `uv run lint-imports` (import-linter; the contract lives in
 
 | Role | Model | Reasoning effort |
 |---|---|---|
-| Builder, Tier 2–3 | `gpt-5.6-sol` | `xhigh` |
-| Builder, Tier 1 | same as above | `low`, passed per call with `-c model_reasoning_effort=low` |
-| Verifier, Tier 3 | `gpt-5.6-terra` — judged by the human to be at least `gpt-5.6-sol`'s equal | `xhigh` |
+| Builder, Tier 1 | `gpt-5.6-sol` | `medium` |
+| Builder, Tier 2 | `gpt-5.6-sol` | `high` |
+| Builder, Tier 3 | `gpt-5.6-sol` | `xhigh` |
+| Verifier, Tier 3 | `gpt-5.5` | `xhigh` |
+
+Configured default effort: `xhigh` — the highest any Tier uses, so a forgotten
+per-call override wastes reasoning instead of quietly under-thinking a Tier 3
+change. Tier 1 and Tier 2 override downward with
+`-c model_reasoning_effort=medium` and `=high`.
+
+Capability gap between builder and verifier: the builder uses `gpt-5.6-sol`,
+described by the vendor as the *latest frontier* agentic coding model. `gpt-5.5`
+is the strongest remaining candidate — also described as frontier, but not the
+latest — so the verifier is probably somewhat weaker than the builder, on
+positioning alone with no benchmark to confirm it. `gpt-5.6-terra` and
+`gpt-5.6-luna` are positioned lower still ("balanced everyday", "fast and
+affordable") and are not eligible. Tier 3 EVIDENCE claims proportionally less
+from a verification run under this gap.
 
 Fallback when the builder model is unavailable: `gpt-reserve`.
 
 Codex sandbox and approval policy in force: `-s` is passed explicitly on every
-call; the configured approval policy is `OnRequest`, which was observed to
+call — `read-only` for the feasibility review and the verifier, `workspace-write`
+for the build. The configured approval policy is `OnRequest`, observed to
 *reject* a write under a read-only sandbox rather than auto-approve it. Re-check
-with `codex doctor` after any Codex update — the policy is inherited from
-account configuration, not fixed by the CLI.
+with `codex doctor` after any Codex update: the policy is inherited from account
+configuration, not fixed by the CLI.
 
 ## Project-specific safety
 

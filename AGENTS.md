@@ -1,7 +1,7 @@
 # AGENTS.md — Dual-Agent Development Baseline
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.3.0 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.4.0 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- To update: replace this whole file verbatim. Never merge.     -->
@@ -286,9 +286,19 @@ name where it came from, and ask. An unapproved SPEC is in this category too.
 
 ## 11. Invoking Codex `[dual-agent]`
 
+Codex is invoked in three distinct ways, and the sandbox differs by design:
+
 ```
-codex exec -s workspace-write "<prompt>"
+codex exec -s read-only      "<feasibility review prompt>"   step 2
+codex exec -s workspace-write "<build prompt>"               steps 4-5, 8
+codex exec -m <verifier-model> -s read-only "<verifier prompt>"   step 7, Tier 3
 ```
+
+**The feasibility review is read-only, and that is not a detail.** It happens
+before the human approves the SPEC (§2 step 3). Giving it write access lets an
+agent begin implementing against an unapproved contract, which dissolves the one
+gate the whole trust model rests on. Reviewing a plan requires reading the plan
+and the code; it never requires writing.
 
 Pass `-s` explicitly on every call. The sandbox and approval policy are
 otherwise **inherited from the account's configuration**, so the same command
@@ -302,30 +312,34 @@ Do not pass `--add-dir` — the workspace is the blast radius.
 **`--dangerously-bypass-approvals-and-sandbox` is forbidden.**
 
 **Reasoning effort scales with the Tier, not with the caller's habit.** The
-configured effort applies to every invocation, so a Tier 1 typo costs the same
-as a Tier 3 concurrency change unless it is overridden per call. Override
-downward for Tier 1 rather than lowering the configured default, which the
-Tier 2 and 3 work needs:
+configured effort applies to every invocation unless overridden per call:
 
 ```
-codex exec -c model_reasoning_effort=<lower> -s workspace-write "<Tier 1 prompt>"
+codex exec -c model_reasoning_effort=<lower> -s workspace-write "<lower-Tier prompt>"
 ```
 
-Never override *upward* silently on a Tier the SPEC set lower — if the work
-needs more reasoning than its Tier implies, the Tier is wrong. Raise it (§3).
+**Configure the default at the highest effort any Tier uses, and override
+downward.** Forgetting an override should then cost money, not assurance: a
+missed downward override on a trivial change wastes reasoning, while a missed
+upward override on a high-stakes one silently under-thinks it. Choose the
+failure that is expensive over the one that is quiet.
 
-Verifier (Tier 3), a fresh session on a different model, read-only:
+Never raise effort *because a task feels harder than its Tier*. If it needs more
+reasoning than its Tier implies, the Tier is wrong — raise the Tier (§3), and
+the effort follows. `PROJECT.md` records the effort for each Tier.
 
-```
-codex exec -m <verifier-model> -s read-only "<verifier prompt>"
-```
+**Choosing the verifier's model.** It must differ from the builder's — that
+difference is the whole point, since two runs of one model share their blind
+spots. It must also be **the strongest model available other than the builder's**.
+Never a cheap small variant: a weak adversary clears whatever it fails to
+understand, and that reads as assurance.
 
-**The verifier's model must differ from the builder's, and must not be less
-capable than it.** A different model is what reduces the correlation; equal or
-greater capability is what makes the attack worth running. A cheaper, weaker
-model produces a verification that clears everything it failed to understand —
-worse than declaring no verification at all, because it reads as assurance.
-Both models are named in `PROJECT.md`.
+Do not require it to equal the builder. When the builder already uses the best
+model on offer, no candidate can, and a rule nothing can satisfy is one everyone
+learns to ignore. **Record the gap instead**: name both models in `PROJECT.md`,
+say in EVIDENCE which is stronger and by what evidence, and claim proportionally
+less from a verification run by the weaker one. A stated gap is auditable; an
+unsatisfiable equality requirement is not.
 
 The verifier receives exactly four inputs and nothing else:
 
@@ -441,8 +455,11 @@ How to fill each field:
 - **Changed-line coverage** needs both a comparison base and a threshold, or it
   cannot fail and is not a layer.
 - **Cleanup** must exit non-zero on findings; a report-only run is not a layer.
-- **Agent models** — the verifier is a different model that a human has judged
-  to be at least the builder's equal (§11). Record the judgement, not an
-  inference from the name.
+- **Agent models** — one row per Tier for the builder, plus the Tier 3 verifier,
+  each with its model and reasoning effort (§11). The verifier is a different
+  model and the strongest one available other than the builder's; record the
+  human's judgement of the capability gap, not an inference from the name.
+  Record the configured default effort too, so a missing per-call override is
+  visible rather than assumed.
 - **Project-specific safety** — anything beyond §10. Write `none` if there is
   nothing; do not leave it empty.
