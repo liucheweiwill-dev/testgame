@@ -41,7 +41,13 @@ jobs:
             --fail-under=100
 
       - name: Mutation
-        run: uv run mutmut run
+        run: |
+          uv run mutmut run
+          results="$(uv run mutmut results)"
+          if [ -n "$results" ]; then
+            printf '%s\n' "$results"
+            exit 1
+          fi
 
       - name: Property-based
         # pytest exits 5 when nothing is collected, so this fails if the suite
