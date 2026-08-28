@@ -1,0 +1,55 @@
+name: gauntlet
+
+# Every layer from PROJECT.md that has a real command. Layers recorded as
+# "not available" are absent here on purpose: CI runs what exists, and the gaps
+# stay visible in EVIDENCE as the Structural blind spot.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gauntlet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # diff-cover needs the base branch
+
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked
+
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: Types
+        run: uv run mypy src
+
+      - name: Lint + format
+        run: uv run ruff check . && uv run ruff format --check .
+
+      - name: Changed-line coverage
+        # On a pull request the base is the comparison point. On a push to main
+        # there is no "changed line" to gate, so this step is skipped rather
+        # than silently degraded into an overall-coverage check.
+        if: github.event_name == 'pull_request'
+        run: |
+          uv run pytest --cov=src --cov-branch --cov-report=xml
+          uv run diff-cover coverage.xml \
+            --compare-branch=origin/${{ github.base_ref }} \
+            --fail-under=100
+
+      - name: Mutation
+        run: uv run mutmut run
+
+      - name: Property-based
+        # pytest exits 5 when nothing is collected, so this fails if the suite
+        # contains no property tests at all.
+        run: uv run pytest -m property -q
+
+      - name: Cleanup
+        run: uv run ruff check --select F401,F811,F841 . && uv run vulture src
+
+      - name: Architecture
+        run: uv run lint-imports
