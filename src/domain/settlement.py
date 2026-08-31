@@ -32,6 +32,9 @@ def dealer_should_hit(cards: Sequence[Card], rule: DealerRule) -> bool:
 
 
 def settle(player: Sequence[Card], dealer: Sequence[Card], stake: int) -> Settlement:
+    if stake < 1:
+        raise ValueError("stake must be positive")
+
     if is_bust(player):
         return Settlement(Outcome.DEALER_WINS, returned=0)
 

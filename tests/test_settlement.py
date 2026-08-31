@@ -1,3 +1,5 @@
+import pytest
+
 from domain.cards import Card, Rank, Suit
 from domain.settlement import (
     DealerRule,
@@ -78,6 +80,12 @@ def test_blackjack_beats_twenty() -> None:
     assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=25)
 
 
+def test_blackjack_at_stake_seven_returns_seventeen() -> None:
+    result = settle(_cards(Rank.ACE, Rank.KING), _cards(Rank.KING, Rank.QUEEN), stake=7)
+
+    assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=17)
+
+
 def test_blackjack_odd_stake_five_truncates_payout() -> None:
     result = settle(_cards(Rank.ACE, Rank.KING), _cards(Rank.KING, Rank.QUEEN), stake=5)
 
@@ -88,6 +96,26 @@ def test_blackjack_stake_one_returns_stake_plus_one_chip_win() -> None:
     result = settle(_cards(Rank.ACE, Rank.KING), _cards(Rank.KING, Rank.QUEEN), stake=1)
 
     assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=2)
+
+
+def test_blackjack_large_stake_uses_exact_integer_arithmetic() -> None:
+    result = settle(
+        _cards(Rank.ACE, Rank.KING),
+        _cards(Rank.KING, Rank.QUEEN),
+        stake=10**16 + 1,
+    )
+
+    assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=25000000000000002)
+
+
+def test_settle_rejects_zero_stake() -> None:
+    with pytest.raises(ValueError):
+        settle(_cards(Rank.KING), _cards(Rank.QUEEN), stake=0)
+
+
+def test_settle_rejects_negative_stake() -> None:
+    with pytest.raises(ValueError):
+        settle(_cards(Rank.KING), _cards(Rank.QUEEN), stake=-5)
 
 
 def test_dealer_blackjack_beats_player_twenty() -> None:
@@ -106,6 +134,14 @@ def test_player_twenty_beats_dealer_nineteen() -> None:
     assert result == Settlement(Outcome.PLAYER_WINS, returned=20)
 
 
+def test_player_twenty_beats_dealer_nineteen_at_stake_seven() -> None:
+    result = settle(
+        _cards(Rank.KING, Rank.QUEEN), _cards(Rank.KING, Rank.NINE), stake=7
+    )
+
+    assert result == Settlement(Outcome.PLAYER_WINS, returned=14)
+
+
 def test_player_nineteen_loses_to_dealer_twenty() -> None:
     result = settle(
         _cards(Rank.KING, Rank.NINE), _cards(Rank.KING, Rank.QUEEN), stake=10
@@ -120,6 +156,14 @@ def test_equal_twenty_pushes() -> None:
     )
 
     assert result == Settlement(Outcome.PUSH, returned=10)
+
+
+def test_equal_twenty_pushes_at_stake_seven() -> None:
+    result = settle(
+        _cards(Rank.KING, Rank.QUEEN), _cards(Rank.JACK, Rank.QUEEN), stake=7
+    )
+
+    assert result == Settlement(Outcome.PUSH, returned=7)
 
 
 def test_player_bust_loses_even_when_dealer_busts_higher() -> None:
