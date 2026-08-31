@@ -1,7 +1,7 @@
 # AGENTS.md — Dual-Agent Development Baseline
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.5.0 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.5.1 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- To update: replace this whole file verbatim. Never merge.     -->
@@ -57,7 +57,18 @@ the answers in, state what changed, show the revised SPEC, ask again.
 |---|---|---|---|
 | **1** trivial | typo, comment, config value | **two layers only: Tests and Lint + format.** No new test required, but state why the change is untestable or already covered. | no — diff review only |
 | **2** normal | bug fix, small feature | full loop. **A bug fix must start with a RED test that reproduces the bug.** | yes |
-| **3** high stakes | money, auth, data loss, concurrency, public API | full loop + **failure model** (list how this change can hurt; add a layer per mode) + independent verification | yes |
+| **3** high stakes | real funds, auth, data loss, concurrency, public API | full loop + **failure model** (list how this change can hurt; add a layer per mode) + independent verification | yes |
+
+**"Real funds" means value someone can actually lose.** Money that can leave the
+system, a balance a person can claim, credit with a value outside the program.
+A simulated currency that never leaves the process — play chips, a game score, a
+sandbox balance — does not fire this trigger. Written as plain "money" the row
+fired on those too, and a trigger that fires where nothing is at stake teaches
+people to argue with the list instead of reading it.
+
+Record the reading in `PROJECT.md` under project-specific safety, as a decision
+and not a waiver. If such a system ever gains real payments the reading is void,
+and every task touching them is Tier 3 without further argument.
 
 **Structural triggers — any of these raises the Tier by at least one:**
 more than 8 files modified · more than 2 new services/classes · a new shared

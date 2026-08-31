@@ -97,11 +97,14 @@ configuration, not fixed by the CLI.
 
 ## Project-specific safety
 
-The bankroll is virtual chips that never leave the process, so the Tier 3
-"money" trigger in AGENTS.md §3 does not apply here. This is recorded as a
-deliberate reading of that rule, not a waiver: the rule says "money" where it
-means funds that can actually leave the system, and that wording is filed as a
-baseline defect. If real payments are ever added, every task touching them is
-Tier 3 without further argument.
+The bankroll is virtual chips that never leave the process, so the Tier 3 "real
+funds" trigger in AGENTS.md §3 does not fire here. §3 now names this case
+directly — a simulated currency that never leaves the process is not real funds
+— so this is the reading the rule asks to be recorded, not an interpretation
+stretched around it. The earlier wording said "money" and did fire here; that
+was filed as a baseline defect and fixed in v2.5.1.
+
+If real payments are ever added the reading is void, and every task touching
+them is Tier 3 without further argument.
 
 Otherwise: none. No regulated data, no accounts, no external services.

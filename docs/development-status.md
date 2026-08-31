@@ -12,7 +12,7 @@ SPEC revision 6, seven gauntlet layers run, three independent verification
 rounds, EVIDENCE written and reviewed, diff reviewed line by line.
 
 **Task 002 has not started.** Read "Logged for task 002" before writing its
-SPEC. The baseline is now at v2.5.0, which fixed the eleven findings task 001
+SPEC. The baseline is now at v2.5.1, which fixed every finding this project has
 raised — the greenfield Tier triggers among them, so task 002 is no longer Tier
 3 by construction.
 
@@ -121,7 +121,7 @@ check. Residual nuance: CI would not independently enforce that layer on a merge
 commit; the pre-merge workstation run is what establishes it. Moot while no CI
 exists at all.
 
-## Baseline findings from task 001 — fixed in v2.5.0
+## Baseline findings from task 001 — fixed in v2.5.0 and v2.5.1
 
 Task 001 was this baseline's first end-to-end run. Eleven defects surfaced by
 running the workflow rather than reading it, and all eleven are fixed in general
@@ -141,6 +141,7 @@ remember why the rules now read as they do.
 | T4 | A trivial follow-up inside a Tier 3 task cost a full-effort session | §11 |
 | E1 | The Codex hash directory is deleted on update, and a missing CLI reports success | `SETUP.md` §1, §5 |
 | E2 | The builder cannot run the formatter it is judged by | `SETUP.md` §4 |
+| "money" wording | §3's Tier 3 trigger said "money" where it meant funds that can leave the system — it fired on this project's play chips | §3, in **v2.5.1** |
 
 Two of these change how task 002 is run, so read them before writing its SPEC:
 
@@ -154,13 +155,23 @@ Two of these change how task 002 is run, so read them before writing its SPEC:
 
 ## Open findings against the baseline
 
-**The Tier 3 "money" trigger says "money" where it means funds that can leave
-the system.** §3 lists money among the high-stakes domains. This project's
-bankroll is virtual chips that never leave the process, so the trigger reads as
-firing when it should not. Recorded in `PROJECT.md` as a deliberate reading
-rather than a waiver, and still unfixed in the baseline. If real payments are
-ever added the reading is void, and every task touching them is Tier 3 without
-argument.
+Both are against `BOOTSTRAP.md`, which carries no version header, so neither
+moves the general layer on its own.
+
+**The update procedure never says to correct the project's own record.** It is
+overwrite, reconcile, report-to-the-human. Nothing tells it to fix the findings
+this project filed against the baseline once a release closes them. Left alone,
+a project keeps claiming defects that are fixed. Corrected by hand at both the
+v2.5.0 and v2.5.1 updates.
+
+**The leak check is line-ending sensitive, and fails towards the dangerous
+answer.** Before overwriting, the procedure has you confirm nothing
+project-specific leaked into a general-layer file. On Windows the baseline's
+working-tree copies are CRLF while a project's committed blobs are LF, so a
+plain `diff` reports every line of every file as changed when nothing has. That
+false positive points straight at the one action `BOOTSTRAP.md` forbids — "if a
+merge ever looks necessary, something project-specific leaked". Compare with
+`diff --strip-trailing-cr`, or against the same side of git.
 
 ## Decisions
 
@@ -214,7 +225,8 @@ rule is fixed, deliberately, to keep the combination space testable.
 and add no structure.
 
 **2026-08-28 — Bootstrapped from `ai-sw-baseline`; updated to general layer
-v2.5.0 on 2026-08-31.** This project is also the baseline's first real
+v2.5.1 on 2026-08-31.** This project is also the baseline's first real
 execution. Defects found while running `BOOTSTRAP.md` (eight) and its update
 procedure (one) were reported back and fixed there across v2.2.0, v2.3.0,
-v2.4.0 and v2.4.1. Task 001's full run added eleven more, all fixed in v2.5.0.
+v2.4.0 and v2.4.1. Task 001's full run added eleven more, fixed in v2.5.0, and
+the "money" wording it had been reading narrowly was fixed in v2.5.1.
