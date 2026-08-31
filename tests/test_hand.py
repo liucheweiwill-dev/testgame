@@ -69,6 +69,10 @@ def test_blackjack_king_then_ace() -> None:
     assert is_blackjack(_cards(Rank.KING, Rank.ACE)) is True
 
 
+def test_blackjack_ace_then_ten() -> None:
+    assert is_blackjack(_cards(Rank.ACE, Rank.TEN)) is True
+
+
 def test_three_card_twenty_one_is_not_blackjack() -> None:
     assert is_blackjack(_cards(Rank.ACE, Rank.NINE, Rank.ACE)) is False
 

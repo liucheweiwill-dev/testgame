@@ -1,4 +1,4 @@
-# SPEC — 001 domain core (Tier 3), revision 5
+# SPEC — 001 domain core (Tier 3), revision 6
 
 ## Goal
 
@@ -52,7 +52,8 @@ class Settlement:
 
 def dealer_should_hit(cards: Sequence[Card], rule: DealerRule) -> bool
 def settle(player: Sequence[Card], dealer: Sequence[Card], stake: int) -> Settlement
-                                                   # stake < 1 -> ValueError
+                                    # stake not an int -> TypeError
+                                    # stake < 1        -> ValueError
 ```
 
 Hands are `Sequence[Card]` everywhere. Scenario tables below name ranks alone
@@ -72,11 +73,24 @@ Evaluated strictly in this order — the order is the specification:
 6. Otherwise compare totals: higher wins; `PLAYER_WINS` returns `stake * 2`,
    `DEALER_WINS` returns `0`, equal totals give `PUSH` returning `stake`.
 
-**`stake` must be a positive integer.** `settle` raises `ValueError` for
-`stake < 1`. Bet *validation* is out of scope — deciding whether a player may
-wager 500 belongs to a later task — but the *domain* of this function is not:
-`returned` means chips handed back, and a negative number of chips handed back
-has no meaning. Rejecting it here is a precondition, not a bet rule.
+**`stake` must be a positive integer, and both halves are checked at runtime.**
+`settle` raises `TypeError` when `stake` is not an `int`, and `ValueError` when
+it is an `int` below `1`. Bet *validation* is out of scope — deciding whether a
+player may wager 500 belongs to a later task — but the *domain* of this function
+is not: `returned` means chips handed back, and neither a negative nor a
+fractional number of chips handed back has any meaning. Rejecting them here is a
+precondition, not a bet rule.
+
+The two exception types follow Python's own convention rather than inventing
+one: `TypeError` for the wrong type, `ValueError` for the right type carrying an
+impossible value. A caller catching `ValueError` to mean "that bet amount is not
+usable" should not also swallow "you passed a string". `bool` is a subclass of
+`int`, so `stake=True` is accepted as `1`; that is Python-wide behaviour and not
+worth a clause.
+
+**A type annotation is not a runtime check.** `stake: int` binds callers only
+under a type checker, and `mypy` here is configured over `src` alone. The moment
+a stake arrives from a parsed form field, the annotation guarantees nothing.
 
 **The 3:2 payout truncates.** `stake * 3 // 2` is integer division; an odd stake
 pays the floor. Chips are whole and there is no half-chip unit.
@@ -110,6 +124,9 @@ neither is bust, and their totals are equal. Nothing else pushes.
 **Blackjack**
 
 - `is_blackjack([ACE, KING])` → `True`; `is_blackjack([KING, ACE])` → `True`
+- `is_blackjack([ACE, TEN])` → `True` — a natural is an ace with any ten-value
+  card, not only a face card. Without this row an implementation matching
+  `JACK | QUEEN | KING` and excluding `TEN` passes every other blackjack row.
 - `is_blackjack([ACE, NINE, ACE])` → `False` — 21 on three cards is not blackjack
 
 **Shoe**
@@ -144,6 +161,7 @@ neither is bust, and their totals are equal. Nothing else pushes.
 | blackjack | blackjack | `PUSH` | `10` |
 | blackjack | 21 on three cards | `PLAYER_BLACKJACK` | `25` |
 | blackjack | 20 | `PLAYER_BLACKJACK` | `25` |
+| `[ACE, TEN]` | 20 | `PLAYER_BLACKJACK` | `25` |
 | **blackjack, stake 5** | 20 | `PLAYER_BLACKJACK` | **`12`** — `5 + 5*3//2` |
 | **blackjack, stake 1** | 20 | `PLAYER_BLACKJACK` | **`2`** — `1 + 1*3//2`, and `1*3//2` is `1`, not `0` |
 | 20 | blackjack | `DEALER_WINS` | `0` |
@@ -174,6 +192,13 @@ exists. Every other scenario passes under both.
 |---|---|
 | `settle(…, stake=0)` | `ValueError` |
 | `settle(…, stake=-5)` | `ValueError` |
+| `settle(…, stake=1.5)` | `TypeError` |
+| `settle(…, stake=10.0)` | `TypeError` — an exact-valued float is still a float |
+| `settle(…, stake="10")` | `TypeError` |
+
+Without the last three, `settle(blackjack, 20, stake=1.5)` returns
+`Settlement(PLAYER_BLACKJACK, returned=3.5)` — a float held in a field annotated
+`int` — while every gauntlet layer stays green.
 
 ## Must NOT
 
@@ -189,9 +214,12 @@ exists. Every other scenario passes under both.
    pluggable policy.
 4. No split, double, insurance, surrender, bet validation or bot logic — not
    even stubbed.
-5. Payout arithmetic is integer throughout. No float touches a stake. Enforced
-   by the `10**16 + 1` scenario, not by inspection: `int(stake * 1.5)` type-checks
-   as `int`, passes ruff, and matches every small-stake example.
+5. Payout arithmetic is integer throughout. No float touches a stake — neither
+   inside the function nor arriving at it. That is two defects, so it takes two
+   checks: the `10**16 + 1` scenario catches a float *implementation*
+   (`int(stake * 1.5)` type-checks as `int`, passes ruff, and matches every
+   small-stake example), and the non-integer stake scenarios catch a float
+   *caller*. Neither one catches the other.
 6. The bootstrap scaffolding does not survive: `src/domain/scaffold.py`,
    `tests/test_scaffold.py` and `tests/test_scaffold_properties.py` are deleted,
    and the Cleanup layer stays green afterwards.
@@ -210,6 +238,8 @@ caller that trusts it. Each mode names the check that catches it.
 | Payout computed in floating point | the `10**16 + 1` scenario |
 | A payout formula hardcoded to the stake-10 examples | every formula asserted at stake 7 as well |
 | Negative or zero stake accepted, returning negative chips | the invalid-stake scenarios |
+| Non-integer stake accepted, returning fractional chips | the non-integer stake scenarios, plus the `returned` is an `int` property |
+| A natural read as face cards only, so `[ACE, TEN]` underpays | `is_blackjack([ACE, TEN])` and the `[ACE, TEN]` vs 20 settlement row |
 | Shoe reproducible but globally seeded | `random.getstate()` unchanged scenario |
 | Shoe short, or wrong suit composition | canonical `(Rank, Suit)` multiset comparison |
 | Dead code left behind by the scaffold removal | Cleanup layer, after its threshold is lowered (below) |
@@ -296,6 +326,10 @@ Every row of every table under **Scenarios** is a named test. Beyond those:
 - **Property**: for any valid stake, `returned` is one of `0`, `stake`,
   `stake * 2`, or `stake + stake * 3 // 2`, and which one follows from the
   outcome.
+- **Property**: `returned` is an `int` for every settled hand at every valid
+  stake. This is Must NOT 5 stated as a postcondition, so a float that reaches
+  the arithmetic by any route is caught at the output rather than only at the
+  boundary.
 - **Test**: no module under `src/domain` imports a name outside
   `sys.stdlib_module_names`.
 - **Test**: constructing and exhausting a `Shoe` leaves `random.getstate()`
@@ -351,9 +385,39 @@ Revision 1: superseded, never approved.
 Revision 2: approved by Will, 2026-08-28; superseded by revision 3.
 Revision 3: approved by Will, 2026-08-28; superseded by revision 4.
 Revision 4: approved by Will, 2026-08-28; superseded by revision 5.
-Revision 5: **approved by Will, 2026-08-28**.
+Revision 5: approved by Will, 2026-08-28; superseded by revision 6.
+Revision 6: **approved by Will, 2026-08-31**.
 
 ## Revisions
+
+**Revision 6** — a second Tier 3 independent verification (`gpt-5.5`, four
+blind inputs, against `569f154`) raised four findings. Two are fixed here:
+
+- **`stake`'s domain was only half enforced.** Revision 5 added the `stake < 1`
+  check and stated the domain as "a positive integer", but nothing rejected a
+  non-integer. `settle(blackjack, 20, stake=1.5)` returned
+  `Settlement(PLAYER_BLACKJACK, returned=3.5)` — a float in a field annotated
+  `int` — with every gauntlet layer green. `TypeError` now guards the type and
+  `ValueError` the value.
+- **A natural was never pinned to ten-value cards.** Every blackjack scenario
+  paired `ACE` with a face card, so an implementation matching
+  `JACK | QUEEN | KING` and excluding `TEN` passed all of them. The
+  implementation was already correct; the contract was not.
+
+Two are dismissed, and both dismissals carry into EVIDENCE:
+
+- **The vulture whitelist matches by bare name.** Unchanged from revision 5.
+  This is the second independent run to raise it, which raises its standing as a
+  known limitation without changing why it cannot be narrowed.
+- **Stale scaffold `.pyc` files under `__pycache__`.** They exist on the
+  workstation, but `__pycache__/` is gitignored, nothing scaffold-related is
+  tracked, and `import domain.scaffold` raises `ModuleNotFoundError` — since PEP
+  3147 a `__pycache__` `.pyc` is not importable without its source. Must NOT 6
+  is about what survives in the repository, and nothing does.
+
+Note again what the verification did **not** find: no divergence from any
+explicit scenario row. As at revision 5, every accepted finding is something the
+SPEC failed to say.
 
 **Revision 5** — the Tier 3 independent verification (`gpt-5.5`, four blind
 inputs, against `c9ab88f`) found no divergence between the code and any explicit

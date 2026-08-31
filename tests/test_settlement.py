@@ -80,6 +80,12 @@ def test_blackjack_beats_twenty() -> None:
     assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=25)
 
 
+def test_ace_ten_blackjack_beats_twenty() -> None:
+    result = settle(_cards(Rank.ACE, Rank.TEN), _cards(Rank.KING, Rank.QUEEN), stake=10)
+
+    assert result == Settlement(Outcome.PLAYER_BLACKJACK, returned=25)
+
+
 def test_blackjack_at_stake_seven_returns_seventeen() -> None:
     result = settle(_cards(Rank.ACE, Rank.KING), _cards(Rank.KING, Rank.QUEEN), stake=7)
 
@@ -116,6 +122,33 @@ def test_settle_rejects_zero_stake() -> None:
 def test_settle_rejects_negative_stake() -> None:
     with pytest.raises(ValueError):
         settle(_cards(Rank.KING), _cards(Rank.QUEEN), stake=-5)
+
+
+def test_settle_rejects_fractional_float_stake() -> None:
+    with pytest.raises(TypeError):
+        settle(
+            _cards(Rank.ACE, Rank.KING),
+            _cards(Rank.KING, Rank.QUEEN),
+            stake=1.5,  # type: ignore[arg-type]
+        )
+
+
+def test_settle_rejects_exact_valued_float_stake() -> None:
+    with pytest.raises(TypeError):
+        settle(
+            _cards(Rank.ACE, Rank.KING),
+            _cards(Rank.KING, Rank.QUEEN),
+            stake=10.0,  # type: ignore[arg-type]
+        )
+
+
+def test_settle_rejects_string_stake() -> None:
+    with pytest.raises(TypeError):
+        settle(
+            _cards(Rank.ACE, Rank.KING),
+            _cards(Rank.KING, Rank.QUEEN),
+            stake="10",  # type: ignore[arg-type]
+        )
 
 
 def test_dealer_blackjack_beats_player_twenty() -> None:

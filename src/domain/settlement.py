@@ -32,6 +32,8 @@ def dealer_should_hit(cards: Sequence[Card], rule: DealerRule) -> bool:
 
 
 def settle(player: Sequence[Card], dealer: Sequence[Card], stake: int) -> Settlement:
+    if not isinstance(stake, int):
+        raise TypeError("stake must be an integer")
     if stake < 1:
         raise ValueError("stake must be positive")
 

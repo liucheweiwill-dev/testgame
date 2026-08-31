@@ -48,3 +48,13 @@ def test_settlement_returned_matches_outcome_formula(
     }
 
     assert result.returned == expected_returned[result.outcome]
+
+
+@pytest.mark.property
+@given(player=hands, dealer=hands, stake=st.integers(min_value=1))
+def test_settlement_returned_is_always_an_int(
+    player: list[Card], dealer: list[Card], stake: int
+) -> None:
+    result = settle(player, dealer, stake)
+
+    assert isinstance(result.returned, int)
