@@ -1,4 +1,4 @@
-# SPEC — 001 domain core (Tier 3), revision 4
+# SPEC — 001 domain core (Tier 3), revision 5
 
 ## Goal
 
@@ -52,6 +52,7 @@ class Settlement:
 
 def dealer_should_hit(cards: Sequence[Card], rule: DealerRule) -> bool
 def settle(player: Sequence[Card], dealer: Sequence[Card], stake: int) -> Settlement
+                                                   # stake < 1 -> ValueError
 ```
 
 Hands are `Sequence[Card]` everywhere. Scenario tables below name ranks alone
@@ -70,6 +71,12 @@ Evaluated strictly in this order — the order is the specification:
 5. Dealer bust → `PLAYER_WINS`, `returned = stake * 2`.
 6. Otherwise compare totals: higher wins; `PLAYER_WINS` returns `stake * 2`,
    `DEALER_WINS` returns `0`, equal totals give `PUSH` returning `stake`.
+
+**`stake` must be a positive integer.** `settle` raises `ValueError` for
+`stake < 1`. Bet *validation* is out of scope — deciding whether a player may
+wager 500 belongs to a later task — but the *domain* of this function is not:
+`returned` means chips handed back, and a negative number of chips handed back
+has no meaning. Rejecting it here is a precondition, not a bet rule.
 
 **The 3:2 payout truncates.** `stake * 3 // 2` is integer division; an odd stake
 pays the floor. Chips are whole and there is no half-chip unit.
@@ -146,6 +153,28 @@ neither is bust, and their totals are equal. Nothing else pushes.
 | 22 bust | 23 bust | `DEALER_WINS` | `0` |
 | 18 | 24 bust | `PLAYER_WINS` | `20` |
 
+**Every payout formula is exercised at more than one stake.** Testing only at
+`10` lets a hardcoded `returned = 20` pass. At stake `7`:
+
+| Player | Dealer | `outcome` | `returned` |
+|---|---|---|---|
+| 20 | 19 | `PLAYER_WINS` | `14` |
+| 20 | 20 | `PUSH` | `7` |
+| blackjack | 20 | `PLAYER_BLACKJACK` | `17` — `7 + 7*3//2` |
+
+**Integer arithmetic, proved at a stake floats cannot represent.** With
+`stake = 10**16 + 1`, blackjack returns **`25000000000000002`**. An
+implementation written as `stake + int(stake * 1.5)` returns
+`25000000000000001` and fails this row — which is the only reason the row
+exists. Every other scenario passes under both.
+
+**Invalid stakes**
+
+| Call | Expected |
+|---|---|
+| `settle(…, stake=0)` | `ValueError` |
+| `settle(…, stake=-5)` | `ValueError` |
+
 ## Must NOT
 
 1. `src/domain` imports nothing outside the Python standard library — not
@@ -160,7 +189,9 @@ neither is bust, and their totals are equal. Nothing else pushes.
    pluggable policy.
 4. No split, double, insurance, surrender, bet validation or bot logic — not
    even stubbed.
-5. Payout arithmetic is integer throughout. No float touches a stake.
+5. Payout arithmetic is integer throughout. No float touches a stake. Enforced
+   by the `10**16 + 1` scenario, not by inspection: `int(stake * 1.5)` type-checks
+   as `int`, passes ruff, and matches every small-stake example.
 6. The bootstrap scaffolding does not survive: `src/domain/scaffold.py`,
    `tests/test_scaffold.py` and `tests/test_scaffold_properties.py` are deleted,
    and the Cleanup layer stays green afterwards.
@@ -175,7 +206,10 @@ caller that trusts it. Each mode names the check that catches it.
 | Ace demoted always, or never | `[ACE, ACE, NINE]` and `[ACE, SIX, KING]` scenarios; the total-bounds property |
 | Blackjack confused with a three-card 21 | dedicated scenarios plus the exact `PUSH` definition |
 | Bust ordering inverted — both bust scored by total | the `22 vs 23 bust` scenario |
-| 3:2 payout rounded up, or floated | stake 5 and stake 1 boundary scenarios |
+| 3:2 payout rounded up | stake 5 and stake 1 boundary scenarios |
+| Payout computed in floating point | the `10**16 + 1` scenario |
+| A payout formula hardcoded to the stake-10 examples | every formula asserted at stake 7 as well |
+| Negative or zero stake accepted, returning negative chips | the invalid-stake scenarios |
 | Shoe reproducible but globally seeded | `random.getstate()` unchanged scenario |
 | Shoe short, or wrong suit composition | canonical `(Rank, Suit)` multiset comparison |
 | Dead code left behind by the scaffold removal | Cleanup layer, after its threshold is lowered (below) |
@@ -255,7 +289,13 @@ Every row of every table under **Scenarios** is a named test. Beyond those:
 - **Property**: for any seed and any `decks ≥ 1`, dealing the shoe dry yields a
   `Counter` exactly equal to `decks` copies of all 52 `(Rank, Suit)` pairs.
 - **Property**: `settle` returns `PUSH` if and only if both hands are blackjack,
-  or neither is blackjack, neither is bust, and the totals are equal.
+  or neither is blackjack, neither is bust, and the totals are equal — **and
+  when it does, `returned == stake`.** Asserting the outcome alone leaves the
+  arithmetic untested, which is what the Mutation layer would have caught if it
+  ran on this workstation.
+- **Property**: for any valid stake, `returned` is one of `0`, `stake`,
+  `stake * 2`, or `stake + stake * 3 // 2`, and which one follows from the
+  outcome.
 - **Test**: no module under `src/domain` imports a name outside
   `sys.stdlib_module_names`.
 - **Test**: constructing and exhausting a `Shoe` leaves `random.getstate()`
@@ -310,9 +350,36 @@ skipped, and state that the new results gate is therefore unverified locally.
 Revision 1: superseded, never approved.
 Revision 2: approved by Will, 2026-08-28; superseded by revision 3.
 Revision 3: approved by Will, 2026-08-28; superseded by revision 4.
-Revision 4: **approved by Will, 2026-08-28**.
+Revision 4: approved by Will, 2026-08-28; superseded by revision 5.
+Revision 5: **approved by Will, 2026-08-28**.
 
 ## Revisions
+
+**Revision 5** — the Tier 3 independent verification (`gpt-5.5`, four blind
+inputs, against `c9ab88f`) found no divergence between the code and any explicit
+scenario row, and four holes around them. Three are fixed here:
+
+- **`stake` had no domain.** The verifier ran `settle(blackjack, 20, -5)` and got
+  `returned=-13`. `returned` means chips handed back; a negative one is
+  meaningless. `stake < 1` now raises.
+- **Every payout formula was asserted only at stake 10**, so a hardcoded
+  `returned = 20` would have passed. Each formula is now also fixed at stake 7,
+  and a property pins `returned` to the outcome rather than checking the outcome
+  alone.
+- **"No float touches a stake" had nothing enforcing it.** `int(stake * 1.5)`
+  type-checks, lints clean, and matches every small stake. The `10**16 + 1` row
+  is where it diverges, and it exists for no other purpose.
+
+The fourth is dismissed with reason, recorded in EVIDENCE: vulture matches
+whitelist entries by bare name, so the four permitted names also silence any
+future unused item sharing them. That is how vulture whitelists work and cannot
+be narrowed; the mitigation is revision 4's admission rule plus review, and the
+four names are distinctive enough that the practical risk is small.
+
+Note what the verification did **not** find: the implementation matches every
+scenario the SPEC states. All four findings are things the SPEC failed to say or
+the gauntlet failed to check — which is exactly the limit `AGENTS.md` §6 warns
+about, observed rather than asserted.
 
 **Revision 4** — the Cleanup repair in revision 2 lowered vulture's confidence
 to 60, which surfaced four findings the tool cannot resolve: three `Suit` enum
