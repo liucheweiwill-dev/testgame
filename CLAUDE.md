@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.4.0 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.5.0 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- To update: replace this whole file verbatim.                 -->
@@ -72,5 +72,7 @@ Do not adopt review feedback wholesale. Judge each item and record why you
 accepted or rejected it. Escalate product, architecture, security, cost, and
 scope trade-offs to the human — those are not yours to settle.
 
-Never commit without the human's authorisation, and never push or deploy
-without it.
+Commits, merges, pushes and deploys follow AGENTS.md §10 and §12 exactly.
+Nothing here softens them, and nothing here restates them: a second copy of a
+rule is a second place for it to drift, and the copy is always the one that goes
+stale.

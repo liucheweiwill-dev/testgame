@@ -1,7 +1,7 @@
 # SETUP.md — Installing a Claude + Codex workstation
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.4.0 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.5.0 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- ============================================================ -->
@@ -34,8 +34,11 @@ baseline repository.
 **Neither agent's CLI is guaranteed to be on PATH.**
 
 - *Codex*: the desktop-app build installs the CLI under a content-hashed
-  directory that **changes on every update**. Never hard-code that path in a
-  script or config. Resolve it at run time, or install the standalone CLI.
+  directory that **changes on every update, and the previous directory is
+  deleted**. A path that resolved earlier in the same session can be gone by the
+  next call. Never hard-code it in a script or config, and do not capture it in
+  a variable you then reuse — resolve it at run time on *every* invocation, or
+  install the standalone CLI.
 - *Claude Code*: a desktop-app install may expose no `claude` command at all, so
   `claude mcp list` and similar checks are simply unavailable. Verify its MCP
   servers from inside an interactive session (`/mcp`) or by reading the project's
@@ -291,6 +294,15 @@ has actually hit — so a layer can be runnable in CI and not on the workstation
 That is the `CI only` state in `AGENTS.md` §5. Record it as such, rather than
 pretending either that the layer works everywhere or that it does not exist.
 
+**The agent writing the code may not be able to run the tools that judge it.**
+Where the roles split — one agent writing inside a sandbox, another running the
+gauntlet outside it — the writer frequently cannot execute the formatter, and
+hand-formatting lands just outside what the formatter wants. Expect the Lint +
+format layer to fail on formatting alone, repeatedly, and read it as structural
+rather than as carelessness. Running a formatter decides nothing, so it is
+exactly the round trip `AGENTS.md` §11 permits below the task's Tier; note in
+the EVIDENCE Honest notes that the edit was made outside the writing role.
+
 One rule outranks tool choice: **a layer must be able to fail.** A coverage run
 without a threshold flag prints a number and exits 0 — it is decoration, not a
 layer.
@@ -424,3 +436,10 @@ review as though the layer existed.
   or not done at all. Read the tail of every long run before treating it as
   finished, and never let a run's own summary stand in for that check. Record
   the fallback model in the project layer so there is something to switch to.
+- **A missing CLI can report success.** `codex exec ... ; echo done` exits 0
+  when the binary is not there: the `;` discards the failure, as does any
+  wrapper that reports only the last command in a chain. A run that never
+  happened then looks exactly like a run that changed nothing — empty diff, no
+  error — and the next step proceeds as though the work were done. Check the
+  invocation's own exit status, and treat a missing CLI as a hard stop rather
+  than an empty result.

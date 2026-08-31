@@ -11,9 +11,10 @@ One line per task, plus the decisions that outlive any single task.
 SPEC revision 6, seven gauntlet layers run, three independent verification
 rounds, EVIDENCE written and reviewed, diff reviewed line by line.
 
-**Task 002 has not started.** Read "Logged for task 002" and the open findings
-below before writing its SPEC — several should be fixed in the baseline first,
-and the greenfield Tier triggers affect how task 002 is tiered.
+**Task 002 has not started.** Read "Logged for task 002" before writing its
+SPEC. The baseline is now at v2.5.0, which fixed the eleven findings task 001
+raised — the greenfield Tier triggers among them, so task 002 is no longer Tier
+3 by construction.
 
 ## Tasks
 
@@ -120,87 +121,46 @@ check. Residual nuance: CI would not independently enforce that layer on a merge
 commit; the pre-merge workstation run is what establishes it. Moot while no CI
 exists at all.
 
+## Baseline findings from task 001 — fixed in v2.5.0
+
+Task 001 was this baseline's first end-to-end run. Eleven defects surfaced by
+running the workflow rather than reading it, and all eleven are fixed in general
+layer **v2.5.0**, adopted here on 2026-08-31. One line each is enough to
+remember why the rules now read as they do.
+
+| Finding | What it was | Fixed in |
+|---|---|---|
+| W1 | The workflow never said which branch the SPEC lives on before approval | §2 step 1, §12 |
+| W2 | EVIDENCE ordered after verification but naturally written during implementation | §6 |
+| W3 | `CLAUDE.md` contradicted §12 on whether checkpoint commits need authorisation | `CLAUDE.md` |
+| W4 | `CI only` asserted that a CI exists, and nothing verified it | §5 |
+| W5 | The verification loop had no termination rule | §11 |
+| W6 | The verifier received the gauntlet table as a blind input but was never asked to doubt it | §11 |
+| W7 | Step 10 ordered the status update before the merge it describes | §2 step 10, §12 |
+| Greenfield triggers | §3's structural triggers fire on every early task in a new project | §3 |
+| T4 | A trivial follow-up inside a Tier 3 task cost a full-effort session | §11 |
+| E1 | The Codex hash directory is deleted on update, and a missing CLI reports success | `SETUP.md` §1, §5 |
+| E2 | The builder cannot run the formatter it is judged by | `SETUP.md` §4 |
+
+Two of these change how task 002 is run, so read them before writing its SPEC:
+
+- **The greenfield triggers no longer fire by construction.** §3 now measures
+  change against the architecture the project has already committed to, so task
+  002 is not automatically Tier 3 the way task 001 was. A trigger that does fire
+  still cannot be argued down — that remains the ratchet.
+- **Verification now terminates**, on a round that finds no divergence, and the
+  rule has to be set before the round runs rather than after reading its
+  findings.
+
 ## Open findings against the baseline
 
-Not yet fixed in `ai-sw-baseline`; all raised by running the workflow rather than
-reading it.
-
-**W1 — the workflow never says which branch the SPEC lives on before approval.**
-§2 places Codex on a task branch at step 4, but the SPEC is written at step 1.
-Here the branch was created at step 1 so that `main` is touched only by the step
-10 merge. That was a judgement call, not a documented rule.
-
-**W2 — EVIDENCE is ordered after verification but naturally written during
-implementation.** §2 puts EVIDENCE at step 8, after step 7's verification, which
-is correct because it must record the verification result. But the gauntlet
-output and the spec-to-test mapping are produced in the implementation session,
-so writing EVIDENCE later costs a session that must re-read its own work.
-
-**W3 — `CLAUDE.md` contradicts `AGENTS.md` §12 on checkpoint commits.**
-`CLAUDE.md` says "Never commit without the human's authorisation." §12 says
-checkpoint commits "need no authorisation" and that the human authorises what
-reaches the main branch, not each commit on the way there. Both are v2.4.0.
-`CLAUDE.md` is supposed to add to `AGENTS.md` and never repeat it; here it
-contradicts it outright. §12 was followed, matching the seven checkpoints on this
-branch, but anyone reading `CLAUDE.md` cold gets the opposite instruction.
-
-**W4 — §5's three layer-states assume CI exists, and nothing verifies it.**
-`CI only` is defined as "does not run on this workstation, but does run in CI".
-Nothing checks that the CI a row names is real. This project carried that label
-for the whole of task 001 with no remote, no Actions, and a layer that had never
-executed anywhere. There is no state for "configured, unrunnable here, and no CI
-wired up"; `not available` was chosen as the least wrong of the three.
-
-**W5 — the verification loop has no termination rule.** §2 puts verification at
-step 7 and EVIDENCE at step 8 with no guidance on what happens when verification
-produces accepted findings. Each fix invalidates the verification that found it,
-by the same freshness argument that justifies re-running. Three rounds here, each
-finding real gaps, none finding a defect. The rule adopted below is not in the
-baseline and should be.
-
-**W6 — the verifier's four blind inputs include claims no round is asked to
-check.** §11 hands over the `PROJECT.md` gauntlet table "since a missing layer is
-exactly the sort of gap the verifier exists to notice". Three rounds read a row
-asserting CI runs mutation; none asked whether that CI existed. The verifier is
-pointed at the code and the contract, never at whether the evidence apparatus
-describes itself truthfully.
-
-**W7 — step 10 orders the status update before the merge it describes.** §2 step
-10 reads "Claude updates development-status.md; HUMAN AUTHORISES THE MERGE", so
-the file is written on the task branch while the merge is still hypothetical and
-can only be described in the future tense. Recording the merge as done then needs
-a second commit, which §12 says should not happen on the main branch. Here that
-was a doc-only correction committed directly to `main`; the alternative was
-leaving a merged `main` asserting it was still awaiting authorisation.
-
-**Greenfield Tier triggers.** §3 raises the Tier on "a new module" and "more than
-2 new services/classes". In a greenfield project both fire on the first task and
-most early ones, making Tier 3 the default and collapsing the tiering. The
-triggers read as though they assume an existing codebase. Task 001 stood at Tier
-3 regardless — fixing a rule because it is inconvenient is how rules erode — but
-this should be fixed before task 002.
-
-**T4 — a trivial follow-up inside a Tier 3 task costs a full-effort session.**
-§11 scales effort by Tier, and a Tier is a property of the task, not of the round
-trip. Correcting one assertion and one test name ran at `xhigh`. This recurred
-throughout task 001 and is why several one-line corrections were made
-Claude-side rather than dispatched.
-
-## Open findings against SETUP.md
-
-**E1 — the Codex hash directory is deleted on update, not merely changed.**
-§1 warns the path "changes on every update". It understates the failure. Mid-way
-through this session the directory the CLI had been invoked from ceased to exist;
-both earlier hashes are gone. Worse, `codex exec ... ; echo` reports success when
-the binary is missing, so a build that never ran is indistinguishable from a
-build that changed nothing — which is exactly what happened once here. Resolve at
-run time on *every* call, and check the invocation's own exit status.
-
-**E2 — the role split guarantees a `ruff format --check` failure every round.**
-Codex cannot execute `ruff format` from its sandbox, so it hand-formats and lands
-just outside. This happened in revision 5 and again in revision 6, same file,
-same cause. It is structural, not carelessness: the builder cannot run the
-formatter it is judged by.
+**The Tier 3 "money" trigger says "money" where it means funds that can leave
+the system.** §3 lists money among the high-stakes domains. This project's
+bankroll is virtual chips that never leave the process, so the trigger reads as
+firing when it should not. Recorded in `PROJECT.md` as a deliberate reading
+rather than a waiver, and still unfixed in the baseline. If real payments are
+ever added the reading is void, and every task touching them is Tier 3 without
+argument.
 
 ## Decisions
 
@@ -253,8 +213,8 @@ rule is fixed, deliberately, to keep the combination space testable.
 300-cell table would dominate the mutation signal with trivial lookup mutations
 and add no structure.
 
-**2026-08-28 — Bootstrapped from `ai-sw-baseline`, now at general layer v2.4.1.**
-This project is also the baseline's first real execution. Defects found while
-running `BOOTSTRAP.md` (eight) and its update procedure (one) were reported back
-and fixed there across v2.2.0, v2.3.0, v2.4.0 and v2.4.1. Task 001 adds eight
-more, listed above.
+**2026-08-28 — Bootstrapped from `ai-sw-baseline`; updated to general layer
+v2.5.0 on 2026-08-31.** This project is also the baseline's first real
+execution. Defects found while running `BOOTSTRAP.md` (eight) and its update
+procedure (one) were reported back and fixed there across v2.2.0, v2.3.0,
+v2.4.0 and v2.4.1. Task 001's full run added eleven more, all fixed in v2.5.0.

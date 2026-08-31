@@ -1,7 +1,7 @@
 # AGENTS.md — Dual-Agent Development Baseline
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.4.0 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.5.0 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- To update: replace this whole file verbatim. Never merge.     -->
@@ -33,7 +33,7 @@ then record `roles: single-agent (correlation not broken)`.
 
 ```
  0. /grill-me                   human-invoked; Tier 3 or on request
- 1. Claude writes SPEC
+ 1. Claude writes SPEC          on a task branch, created now  (§12)
  2. Codex reviews feasibility   [dual-agent]
  3. HUMAN APPROVES SPEC         gate — a changed SPEC voids prior approval
  4. Codex, on a task branch:    RED -> GREEN -> REFACTOR
@@ -42,8 +42,8 @@ then record `roles: single-agent (correlation not broken)`.
  7. Tier 3: verification        against that SHA, four blind inputs  (§11)
  8. Codex writes EVIDENCE       naming the SHA
  9. Claude reads EVIDENCE, then reviews the diff line by line  [dual-agent]
-10. Claude updates development-status.md;
-    HUMAN AUTHORISES THE MERGE to the main branch
+10. HUMAN AUTHORISES THE MERGE to the main branch;
+    Claude merges, then records the result in development-status.md  (§12)
 ```
 
 **An answer to a question is not an approval.** If the human answered a
@@ -63,6 +63,17 @@ the answers in, state what changed, show the revised SPEC, ask again.
 more than 8 files modified · more than 2 new services/classes · a new shared
 abstraction · a new module · a new dependency · a cross-layer dependency · a
 new persistence layer · a public API change · a data model migration.
+
+**The triggers measure change to an existing structure.** Each reads "new"
+against what the project already has. A new project has nothing, so its first
+tasks create modules and classes by construction, several triggers fire on every
+one of them, Tier 3 becomes the default, and the tiering stops discriminating —
+the opposite of what a trigger is for. Until there is a structure to change,
+judge these against the architecture the project has already committed to, and
+count only what a task adds beyond it.
+
+This narrows when a trigger fires. It is not licence to lower a Tier that has
+already fired one — that is the ratchet, and it still takes a human.
 
 **Ratchet.** Claude proposes the Tier in the SPEC. Codex may raise it at any
 point. **Lowering a Tier requires explicit human instruction.**
@@ -138,12 +149,26 @@ refuse to run on the machine you are sitting at:
 | State | Meaning |
 |---|---|
 | a command | runs on the workstation and in CI |
-| **`CI only`** | the tool does not run on this workstation's platform, but does run in CI. Name the platform limit. |
-| `not available` | no tool fills this layer in this project at all. Name why. |
+| **`CI only`** | the tool does not run on this workstation's platform, but does run in CI. Name the platform limit, and confirm the CI first — see below. |
+| `not available` | nothing executes this layer in this project: no tool fills it, or the only tool that would cannot run anywhere the project actually builds. Name which. |
 
 A `CI only` layer is **not** a skipped layer and **not** a blind spot: it ran,
 somewhere, and the EVIDENCE says where. Treating it as either understates or
 overstates what was actually checked.
+
+**`CI only` is a claim about the world, so confirm it before writing it down.**
+The CI has to exist, and it has to have run this project's workflow. A workflow
+file in a repository with no remote is not CI. A pipeline nobody has triggered is
+not CI. Where the tool cannot run on this workstation *and* nothing runs it
+elsewhere, the layer is `not available`, and the reason names both halves.
+
+A row promising a second environment that has never existed is worse than an
+absent row: an absent row reads as a gap, and that one reads as coverage.
+
+On Tier 3 this is checked rather than merely asserted: the table is one of the
+verifier's four inputs, and §11 directs it to attack the claims each row makes.
+Below Tier 3 nothing checks it, so there it is guidance, and the state written in
+`PROJECT.md` and echoed in EVIDENCE is the whole of the record.
 
 **Cleanup asks one question:** *What code became unnecessary because of this
 change?* A replacement implementation must remove the superseded code in the
@@ -171,6 +196,13 @@ EVIDENCE replaces any other completion report. Required sections:
 ## Structural blind spot        a layer this project cannot run at all
 ## Honest notes                 anything that lowers the confidence this report can claim
 ```
+
+**Step 8 is where EVIDENCE is finished, not where it is started.** The gauntlet
+output and the Spec -> Test mapping are produced during implementation, so draft
+them there, while the run is in front of you. What step 8 fixes is that the
+report is not complete until it records the verification result and names the
+checkpoint SHA. Deferring the whole document costs a session that must re-read
+its own work to write it.
 
 The gauntlet turns the constraints the SPEC expresses into executable evidence.
 It **cannot** show that the SPEC expresses everything that matters, and it is
@@ -328,6 +360,14 @@ Never raise effort *because a task feels harder than its Tier*. If it needs more
 reasoning than its Tier implies, the Tier is wrong — raise the Tier (§3), and
 the effort follows. `PROJECT.md` records the effort for each Tier.
 
+**A round trip that decides nothing may run below its Tier.** Applying a decision
+already made — a formatting fix, a renamed test, a corrected constant, a stale
+phrase in a document — is mechanical, and a Tier 3 effort buys nothing. The Tier
+still governs the *task*: its layers, its verification and its double track are
+untouched, and the reduction applies to one call, not to the work. The test is
+whether the call has a judgement to make. If it does, it runs at the Tier's
+effort however small the diff looks.
+
 **Choosing the verifier's model.** It must differ from the builder's — that
 difference is the whole point, since two runs of one model share their blind
 spots. It must also be **the strongest model available other than the builder's**.
@@ -349,7 +389,13 @@ The verifier receives exactly four inputs and nothing else:
 2. **The checkpoint SHA** from §2 step 6, and the branch it sits on.
 3. **The gauntlet commands** from `PROJECT.md`, as the table — every row,
    including the `not available` ones, since a missing layer is exactly the sort
-   of gap the verifier exists to notice.
+   of gap the verifier exists to notice. **The table is evidence to attack, not
+   a premise to accept.** Every row asserts something about the world: that the
+   command exists, that it can fail, that the CI it names runs it. Those are
+   claims, and the verifier should test them like any other. Nothing else in the
+   process looks — so a layer that has never executed anywhere will otherwise
+   travel from `PROJECT.md` into EVIDENCE unchallenged, reading as coverage the
+   whole way.
 4. **The task's `docs/<NNN-kebab-slug>/` directory**, for the SPEC's own
    attachments if it has any.
 
@@ -361,16 +407,39 @@ of it.
 default the same human approves the SPEC they commissioned. Correlation is
 reduced, not eliminated. Say so in EVIDENCE and claim less.
 
+**When verification stops.** A finding that changes the SPEC changes the first
+two of the verifier's inputs, so the obvious reading — re-verify whatever moved —
+does not terminate. Every round that finds a gap creates a new state to attack,
+and a contract of any depth always has one more thing it failed to say.
+
+Verification is satisfied when a round finds **no divergence between the code and
+the approved contract**. Contract-completeness findings from that round are
+logged and triaged by the human; a revision that closes a contract gap without
+fixing a code defect does not re-open the requirement. A round that does find a
+divergence has found a defect: fix it, and verify again.
+
+Set the rule before the round runs, and record in EVIDENCE that it was set in
+advance. A stopping condition chosen after reading the findings is not a rule,
+it is a preference wearing one.
+
 ## 12. Checkpoints and branches
 
 **A checkpoint is a commit on the task branch.** Not a stash, not a tag, not a
 patch file — a commit, so it has a SHA that can be named, handed to a verifier,
 and reset to.
 
-Work happens on a task branch, never on the main branch. Checkpoint commits are
-free: they are working state, not the deliverable, and they need no
-authorisation. **The human authorises what reaches the main branch, not each
-commit on the way there** — that is the gate in §2 step 10.
+Work happens on a task branch, never on the main branch. **Create the branch at
+step 1, before the SPEC is written.** The SPEC, its revisions and its approval
+are part of the task and belong beside the code they govern; creating the branch
+later leaves the approved contract sitting on the main branch, or nowhere.
+Checkpoint commits are free: they are working state, not the deliverable, and
+they need no authorisation. **The human authorises what reaches the main branch,
+not each commit on the way there** — that is the gate in §2 step 10.
+
+**One file may be committed directly to the main branch: the status log.** It
+records what the merge did, so it cannot be finished before the merge exists.
+That is why step 10 authorises the merge first and writes the log second.
+Within a task, everything else arrives through the merge and by no other route.
 
 Two checkpoints are mandatory:
 
