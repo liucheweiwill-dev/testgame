@@ -45,8 +45,8 @@ src = ["src"]
 paths_to_mutate = ["src/domain"]
 
 [tool.vulture]
-paths = ["src"]
-min_confidence = 80
+paths = ["src", "tests"]
+min_confidence = 60
 
 [tool.importlinter]
 root_packages = ["domain", "web"]

@@ -1,0 +1,492 @@
+# SPEC — 001 domain core (Tier 3), revision 6
+
+## Goal
+
+The blackjack rules that do not need a table, a bet or a second seat: what a
+card is worth, what a hand totals when aces can count two ways, a shoe that
+deals reproducibly from a seed, and who wins a single settled hand.
+
+Nothing in this task knows about HTTP, sessions, bots, chips held between hands,
+splitting or doubling. Settlement computes what a stake returns; it does not
+place, validate or store bets. Later tasks own the rest.
+
+## API
+
+Every symbol below is public and its signature is fixed by this SPEC. An
+implementation that exposes a different shape has not met it.
+
+```python
+# src/domain/cards.py
+class Rank(Enum):    TWO … TEN, JACK, QUEEN, KING, ACE
+class Suit(Enum):    CLUBS, DIAMONDS, HEARTS, SPADES
+
+@dataclass(frozen=True)
+class Card:
+    rank: Rank
+    suit: Suit
+
+def card_value(rank: Rank) -> int          # ACE -> 11; hand_total demotes it
+
+# src/domain/hand.py
+def hand_total(cards: Sequence[Card]) -> int
+def is_soft(cards: Sequence[Card]) -> bool
+def is_bust(cards: Sequence[Card]) -> bool
+def is_blackjack(cards: Sequence[Card]) -> bool
+
+# src/domain/shoe.py
+class ShoeExhausted(Exception): ...
+
+class Shoe:
+    def __init__(self, decks: int, seed: int) -> None   # decks < 1 -> ValueError
+    def deal(self) -> Card                              # empty -> ShoeExhausted
+    def remaining(self) -> int
+
+# src/domain/settlement.py
+class DealerRule(Enum):  STAND_ON_SOFT_17, HIT_ON_SOFT_17
+class Outcome(Enum):     PLAYER_BLACKJACK, PLAYER_WINS, DEALER_WINS, PUSH
+
+@dataclass(frozen=True)
+class Settlement:
+    outcome: Outcome
+    returned: int        # chips handed back, stake included; 0 when the player loses
+
+def dealer_should_hit(cards: Sequence[Card], rule: DealerRule) -> bool
+def settle(player: Sequence[Card], dealer: Sequence[Card], stake: int) -> Settlement
+                                    # stake not an int -> TypeError
+                                    # stake < 1        -> ValueError
+```
+
+Hands are `Sequence[Card]` everywhere. Scenario tables below name ranks alone
+for brevity; the tests construct real `Card` values with distinct suits unless a
+scenario says otherwise.
+
+## Settlement rules
+
+Evaluated strictly in this order — the order is the specification:
+
+1. Player bust → `DEALER_WINS`, `returned = 0`. **Even if the dealer also
+   busts**: the player busts first and loses immediately.
+2. Both blackjack → `PUSH`, `returned = stake`.
+3. Player blackjack only → `PLAYER_BLACKJACK`, `returned = stake + stake * 3 // 2`.
+4. Dealer blackjack only → `DEALER_WINS`, `returned = 0`.
+5. Dealer bust → `PLAYER_WINS`, `returned = stake * 2`.
+6. Otherwise compare totals: higher wins; `PLAYER_WINS` returns `stake * 2`,
+   `DEALER_WINS` returns `0`, equal totals give `PUSH` returning `stake`.
+
+**`stake` must be a positive integer, and both halves are checked at runtime.**
+`settle` raises `TypeError` when `stake` is not an `int`, and `ValueError` when
+it is an `int` below `1`. Bet *validation* is out of scope — deciding whether a
+player may wager 500 belongs to a later task — but the *domain* of this function
+is not: `returned` means chips handed back, and neither a negative nor a
+fractional number of chips handed back has any meaning. Rejecting them here is a
+precondition, not a bet rule.
+
+The two exception types follow Python's own convention rather than inventing
+one: `TypeError` for the wrong type, `ValueError` for the right type carrying an
+impossible value. A caller catching `ValueError` to mean "that bet amount is not
+usable" should not also swallow "you passed a string". `bool` is a subclass of
+`int`, so `stake=True` is accepted as `1`; that is Python-wide behaviour and not
+worth a clause.
+
+**A type annotation is not a runtime check.** `stake: int` binds callers only
+under a type checker, and `mypy` here is configured over `src` alone. The moment
+a stake arrives from a parsed form field, the annotation guarantees nothing.
+
+**The 3:2 payout truncates.** `stake * 3 // 2` is integer division; an odd stake
+pays the floor. Chips are whole and there is no half-chip unit.
+
+`PUSH` therefore means exactly: both hold blackjack, or neither holds blackjack,
+neither is bust, and their totals are equal. Nothing else pushes.
+
+## Scenarios
+
+**Card values**
+
+| Input | Expected |
+|---|---|
+| `card_value(TWO)` … `card_value(TEN)` | `2` … `10` |
+| `card_value(JACK)`, `card_value(QUEEN)`, `card_value(KING)` | `10` each |
+| `card_value(ACE)` | `11` |
+
+**Hand totals**
+
+| Hand | `hand_total` | `is_soft` |
+|---|---|---|
+| `[ACE, KING]` | `21` | `True` |
+| `[ACE, SIX]` | `17` | `True` |
+| `[ACE, SIX, KING]` | `17` | `False` |
+| `[ACE, ACE]` | `12` | `True` |
+| `[ACE, ACE, ACE]` | `13` | `True` |
+| `[ACE, ACE, NINE]` | `21` | `True` |
+| `[KING, QUEEN, FIVE]` | `25` | `False` |
+| `[]` | `0` | `False` |
+
+**Blackjack**
+
+- `is_blackjack([ACE, KING])` → `True`; `is_blackjack([KING, ACE])` → `True`
+- `is_blackjack([ACE, TEN])` → `True` — a natural is an ace with any ten-value
+  card, not only a face card. Without this row an implementation matching
+  `JACK | QUEEN | KING` and excluding `TEN` passes every other blackjack row.
+- `is_blackjack([ACE, NINE, ACE])` → `False` — 21 on three cards is not blackjack
+
+**Shoe**
+
+- `Shoe(decks=6, seed=42).remaining()` → `312`
+- Dealing all 312 yields exactly 6 copies of every one of the 52 `(Rank, Suit)`
+  pairs — compared as a `Counter` against the canonical multiset, not by
+  counting ranks alone.
+- Two `Shoe(decks=6, seed=42)` deal identical sequences.
+- `seed=42` and `seed=43` deal different sequences.
+- `remaining()` decreases by one per `deal()`; the 313th `deal()` raises
+  `ShoeExhausted`.
+- `Shoe(decks=0, seed=1)` and `Shoe(decks=-1, seed=1)` raise `ValueError`.
+- **Constructing and fully dealing a `Shoe` leaves `random.getstate()`
+  unchanged.**
+
+**Dealer play**
+
+| Dealer hand | Rule | `dealer_should_hit` |
+|---|---|---|
+| `[KING, SEVEN]` hard 17 | S17 | `False` |
+| `[KING, SEVEN]` hard 17 | H17 | `False` — H17 concerns *soft* 17 only |
+| `[ACE, SIX]` soft 17 | S17 | `False` |
+| `[ACE, SIX]` soft 17 | H17 | `True` |
+| `[KING, SIX]` 16 | either | `True` |
+| `[KING, EIGHT]` 18 | either | `False` |
+
+**Settlement** — stake `10` unless stated.
+
+| Player | Dealer | `outcome` | `returned` |
+|---|---|---|---|
+| blackjack | blackjack | `PUSH` | `10` |
+| blackjack | 21 on three cards | `PLAYER_BLACKJACK` | `25` |
+| blackjack | 20 | `PLAYER_BLACKJACK` | `25` |
+| `[ACE, TEN]` | 20 | `PLAYER_BLACKJACK` | `25` |
+| **blackjack, stake 5** | 20 | `PLAYER_BLACKJACK` | **`12`** — `5 + 5*3//2` |
+| **blackjack, stake 1** | 20 | `PLAYER_BLACKJACK` | **`2`** — `1 + 1*3//2`, and `1*3//2` is `1`, not `0` |
+| 20 | blackjack | `DEALER_WINS` | `0` |
+| 20 | 19 | `PLAYER_WINS` | `20` |
+| 19 | 20 | `DEALER_WINS` | `0` |
+| 20 | 20 | `PUSH` | `10` |
+| 22 bust | 23 bust | `DEALER_WINS` | `0` |
+| 18 | 24 bust | `PLAYER_WINS` | `20` |
+
+**Every payout formula is exercised at more than one stake.** Testing only at
+`10` lets a hardcoded `returned = 20` pass. At stake `7`:
+
+| Player | Dealer | `outcome` | `returned` |
+|---|---|---|---|
+| 20 | 19 | `PLAYER_WINS` | `14` |
+| 20 | 20 | `PUSH` | `7` |
+| blackjack | 20 | `PLAYER_BLACKJACK` | `17` — `7 + 7*3//2` |
+
+**Integer arithmetic, proved at a stake floats cannot represent.** With
+`stake = 10**16 + 1`, blackjack returns **`25000000000000002`**. An
+implementation written as `stake + int(stake * 1.5)` returns
+`25000000000000001` and fails this row — which is the only reason the row
+exists. Every other scenario passes under both.
+
+**Invalid stakes**
+
+| Call | Expected |
+|---|---|
+| `settle(…, stake=0)` | `ValueError` |
+| `settle(…, stake=-5)` | `ValueError` |
+| `settle(…, stake=1.5)` | `TypeError` |
+| `settle(…, stake=10.0)` | `TypeError` — an exact-valued float is still a float |
+| `settle(…, stake="10")` | `TypeError` |
+
+Without the last three, `settle(blackjack, 20, stake=1.5)` returns
+`Settlement(PLAYER_BLACKJACK, returned=3.5)` — a float held in a field annotated
+`int` — while every gauntlet layer stays green.
+
+## Must NOT
+
+1. `src/domain` imports nothing outside the Python standard library — not
+   `hypothesis`, not `pytest`, nothing installed. Enforced by an executable
+   test over `sys.stdlib_module_names`, because the import-linter contract names
+   only `web`, `flask` and `jinja2` and would pass a third-party import.
+2. No global randomness. Every shuffle derives from the seed passed in.
+   `random.seed(...)` followed by module-level `random.shuffle` is the specific
+   defect this forbids, and the `getstate()` scenario is what detects it.
+3. No `Config` object, no strategy interface, no card factory, no abstraction
+   with a single implementation. `DealerRule` is a two-valued enum, not a
+   pluggable policy.
+4. No split, double, insurance, surrender, bet validation or bot logic — not
+   even stubbed.
+5. Payout arithmetic is integer throughout. No float touches a stake — neither
+   inside the function nor arriving at it. That is two defects, so it takes two
+   checks: the `10**16 + 1` scenario catches a float *implementation*
+   (`int(stake * 1.5)` type-checks as `int`, passes ruff, and matches every
+   small-stake example), and the non-integer stake scenarios catch a float
+   *caller*. Neither one catches the other.
+6. The bootstrap scaffolding does not survive: `src/domain/scaffold.py`,
+   `tests/test_scaffold.py` and `tests/test_scaffold_properties.py` are deleted,
+   and the Cleanup layer stays green afterwards.
+
+## Failure model (Tier 3)
+
+This module has no I/O, so every way it can hurt is a wrong number reaching a
+caller that trusts it. Each mode names the check that catches it.
+
+| Failure mode | Check |
+|---|---|
+| Ace demoted always, or never | `[ACE, ACE, NINE]` and `[ACE, SIX, KING]` scenarios; the total-bounds property |
+| Blackjack confused with a three-card 21 | dedicated scenarios plus the exact `PUSH` definition |
+| Bust ordering inverted — both bust scored by total | the `22 vs 23 bust` scenario |
+| 3:2 payout rounded up | stake 5 and stake 1 boundary scenarios |
+| Payout computed in floating point | the `10**16 + 1` scenario |
+| A payout formula hardcoded to the stake-10 examples | every formula asserted at stake 7 as well |
+| Negative or zero stake accepted, returning negative chips | the invalid-stake scenarios |
+| Non-integer stake accepted, returning fractional chips | the non-integer stake scenarios, plus the `returned` is an `int` property |
+| A natural read as face cards only, so `[ACE, TEN]` underpays | `is_blackjack([ACE, TEN])` and the `[ACE, TEN]` vs 20 settlement row |
+| Shoe reproducible but globally seeded | `random.getstate()` unchanged scenario |
+| Shoe short, or wrong suit composition | canonical `(Rank, Suit)` multiset comparison |
+| Dead code left behind by the scaffold removal | Cleanup layer, after its threshold is lowered (below) |
+| Weak tests that no assertion catches | Mutation layer — **CI only on this workstation** |
+
+## Files to edit
+
+```
+src/domain/cards.py         new
+src/domain/hand.py          new
+src/domain/shoe.py          new
+src/domain/settlement.py    new
+tests/                      new tests, including tests marked `property`
+pyproject.toml              vulture min_confidence, paths and whitelist; mutmut scope
+tests/vulture_whitelist.py  new — see the Cleanup note below
+PROJECT.md                  Mutation and Cleanup rows
+.github/workflows/gauntlet.yml   Mutation and Cleanup steps
+```
+
+Deleted: `src/domain/scaffold.py`, `tests/test_scaffold.py`,
+`tests/test_scaffold_properties.py`.
+
+**The Mutation layer currently cannot fail.** `mutmut run` prints survivor
+statistics and exits 0 — verified in the locked mutmut 3.7.0 source — so the
+layer is decoration under AGENTS.md §5. This change adds a gate that exits
+non-zero when any mutant survives. That is why `PROJECT.md` and the workflow are
+editable here, for that row and that step only.
+
+**The Cleanup layer under-reports.** `min_confidence = 80` filters out vulture's
+unused-function and unused-class findings, which carry 60. Lower the threshold,
+scan tests alongside `src`, and prove the gate works with a deliberately dead
+function that is removed once the layer has been seen to fail on it.
+
+**At 60 it also reports what it structurally cannot see.** Enum members reached
+by iteration and dataclass fields reached by attribute access look unused to
+vulture. They are handled by `tests/vulture_whitelist.py`, and that file is
+governed by one rule:
+
+> Only names the tool cannot see may go in the whitelist — enum members,
+> dataclass fields, protocol implementations. A name that is genuinely unused
+> today, and might be used later, may **not**. The first kind keeps the layer
+> honest; the second is how a layer decays into decoration, one exemption at a
+> time.
+
+Every entry carries a comment naming which of the permitted categories it is.
+
+## Do not modify
+
+```
+AGENTS.md  CLAUDE.md  SETUP.md      general layer
+ARCHITECTURE.md                      the dependency contract
+.gitignore  .mcp.json                
+uv.lock                              no new dependency is approved
+docs/development-status.md           Claude writes this at step 10
+PROJECT.md                           except the Mutation and Cleanup rows
+.github/workflows/gauntlet.yml       except the Mutation and Cleanup steps
+```
+
+## Setup plan
+
+- **No new dependencies.** Everything needed is installed and locked. Adding one
+  requires a further revision and re-approval.
+- **Files the gauntlet adds:** `coverage.xml` and the caches already in
+  `.gitignore`. Nothing new needs ignoring.
+- **Checkpoints:** the two AGENTS.md §12 requires, no more. **Claude makes
+  them**, not Codex — see the execution split below.
+- Branch `task/001-domain-core`, from `main`.
+
+## Acceptance tests
+
+Every row of every table under **Scenarios** is a named test. Beyond those:
+
+- **Property**: for any hand of 1–10 cards, `hand_total` never exceeds the sum
+  of the cards' soft values and never falls below the sum of their hard values.
+- **Property**: a hand with no ace has `is_soft() == False` and a total equal to
+  the plain sum of its card values.
+- **Property**: for any seed and any `decks ≥ 1`, dealing the shoe dry yields a
+  `Counter` exactly equal to `decks` copies of all 52 `(Rank, Suit)` pairs.
+- **Property**: `settle` returns `PUSH` if and only if both hands are blackjack,
+  or neither is blackjack, neither is bust, and the totals are equal — **and
+  when it does, `returned == stake`.** Asserting the outcome alone leaves the
+  arithmetic untested, which is what the Mutation layer would have caught if it
+  ran on this workstation.
+- **Property**: for any valid stake, `returned` is one of `0`, `stake`,
+  `stake * 2`, or `stake + stake * 3 // 2`, and which one follows from the
+  outcome.
+- **Property**: `returned` is an `int` for every settled hand at every valid
+  stake. This is Must NOT 5 stated as a postcondition, so a float that reaches
+  the arithmetic by any route is caught at the output rather than only at the
+  boundary.
+- **Test**: no module under `src/domain` imports a name outside
+  `sys.stdlib_module_names`.
+- **Test**: constructing and exhausting a `Shoe` leaves `random.getstate()`
+  unchanged.
+- **Negative control**: a deliberately unused function makes the Cleanup layer
+  exit non-zero. Removed once observed; its purpose is to prove the layer fails.
+
+## Commands to run
+
+The full gauntlet from `PROJECT.md`, in order — not only the new test files:
+
+```bash
+uv run pytest -q
+uv run mypy src
+uv run ruff check . && uv run ruff format --check .
+uv run pytest --cov=src --cov-branch --cov-report=xml \
+  && uv run diff-cover coverage.xml --compare-branch=main --fail-under=100
+uv run pytest -m property -q
+uv run ruff check --select F401,F811,F841 . && uv run vulture src tests
+uv run lint-imports
+```
+
+**Claude runs these, not Codex.** Codex's `workspace-write` sandbox cannot
+execute `uv`, which lives outside the workspace, and cannot write `.git` — so it
+can neither run the gauntlet as specified nor make a checkpoint commit. Codex
+writes the code; Claude executes the gauntlet and records the results. Neither
+side can assert an outcome the other did not produce, which suits the double
+track better than the original split did.
+
+Mutation is `CI only` here — mutmut has no native Windows support. Record it
+under "Layers not run as specified — CI only, not reproduced here", never as
+skipped, and state that the new results gate is therefore unverified locally.
+
+## Risk notes
+
+- Ace demotion, blackjack-versus-21, and bust ordering are the three classic
+  defects in this domain. All three are in the failure model with named checks.
+- Mutation cannot run locally, so weak tests go uncaught until CI. The property
+  tests are the local substitute and are required, not optional.
+- Two gauntlet layers are being repaired inside a task that also writes domain
+  code. That is unusual and deliberate: both were discovered by this SPEC's own
+  feasibility review, and shipping domain code behind checks known not to fail
+  would be worse. Keep the two concerns in separate commits.
+- **Tier 3 by structural trigger, not by domain risk.** AGENTS.md §3 fires on
+  "a new module" and "more than 2 new services/classes", both unavoidable in a
+  greenfield package. The rule reads as though it assumes an existing codebase;
+  that is filed against the baseline and is **not** grounds for lowering this
+  task. The Tier stands.
+
+## Human approval
+
+Revision 1: superseded, never approved.
+Revision 2: approved by Will, 2026-08-28; superseded by revision 3.
+Revision 3: approved by Will, 2026-08-28; superseded by revision 4.
+Revision 4: approved by Will, 2026-08-28; superseded by revision 5.
+Revision 5: approved by Will, 2026-08-28; superseded by revision 6.
+Revision 6: **approved by Will, 2026-08-31**.
+
+## Revisions
+
+**Revision 6** — a second Tier 3 independent verification (`gpt-5.5`, four
+blind inputs, against `569f154`) raised four findings. Two are fixed here:
+
+- **`stake`'s domain was only half enforced.** Revision 5 added the `stake < 1`
+  check and stated the domain as "a positive integer", but nothing rejected a
+  non-integer. `settle(blackjack, 20, stake=1.5)` returned
+  `Settlement(PLAYER_BLACKJACK, returned=3.5)` — a float in a field annotated
+  `int` — with every gauntlet layer green. `TypeError` now guards the type and
+  `ValueError` the value.
+- **A natural was never pinned to ten-value cards.** Every blackjack scenario
+  paired `ACE` with a face card, so an implementation matching
+  `JACK | QUEEN | KING` and excluding `TEN` passed all of them. The
+  implementation was already correct; the contract was not.
+
+Two are dismissed, and both dismissals carry into EVIDENCE:
+
+- **The vulture whitelist matches by bare name.** Unchanged from revision 5.
+  This is the second independent run to raise it, which raises its standing as a
+  known limitation without changing why it cannot be narrowed.
+- **Stale scaffold `.pyc` files under `__pycache__`.** They exist on the
+  workstation, but `__pycache__/` is gitignored, nothing scaffold-related is
+  tracked, and `import domain.scaffold` raises `ModuleNotFoundError` — since PEP
+  3147 a `__pycache__` `.pyc` is not importable without its source. Must NOT 6
+  is about what survives in the repository, and nothing does.
+
+Note again what the verification did **not** find: no divergence from any
+explicit scenario row. As at revision 5, every accepted finding is something the
+SPEC failed to say.
+
+**Revision 5** — the Tier 3 independent verification (`gpt-5.5`, four blind
+inputs, against `c9ab88f`) found no divergence between the code and any explicit
+scenario row, and four holes around them. Three are fixed here:
+
+- **`stake` had no domain.** The verifier ran `settle(blackjack, 20, -5)` and got
+  `returned=-13`. `returned` means chips handed back; a negative one is
+  meaningless. `stake < 1` now raises.
+- **Every payout formula was asserted only at stake 10**, so a hardcoded
+  `returned = 20` would have passed. Each formula is now also fixed at stake 7,
+  and a property pins `returned` to the outcome rather than checking the outcome
+  alone.
+- **"No float touches a stake" had nothing enforcing it.** `int(stake * 1.5)`
+  type-checks, lints clean, and matches every small stake. The `10**16 + 1` row
+  is where it diverges, and it exists for no other purpose.
+
+The fourth is dismissed with reason, recorded in EVIDENCE: vulture matches
+whitelist entries by bare name, so the four permitted names also silence any
+future unused item sharing them. That is how vulture whitelists work and cannot
+be narrowed; the mitigation is revision 4's admission rule plus review, and the
+four names are distinctive enough that the practical risk is small.
+
+Note what the verification did **not** find: the implementation matches every
+scenario the SPEC states. All four findings are things the SPEC failed to say or
+the gauntlet failed to check — which is exactly the limit `AGENTS.md` §6 warns
+about, observed rather than asserted.
+
+**Revision 4** — the Cleanup repair in revision 2 lowered vulture's confidence
+to 60, which surfaced four findings the tool cannot resolve: three `Suit` enum
+members reached only by iteration, and a dataclass field reached only by
+attribute access. The human chose a whitelist over dropping vulture, so the
+scope grows by one file and the Cleanup row of `PROJECT.md` and the workflow.
+The whitelist's admission rule is written into the Files section, because a
+whitelist without one stops being a whitelist and becomes an amnesty.
+
+**Revision 3** — three findings from the implementation attempt:
+
+- **The stake-1 scenario was arithmetically wrong.** `1 * 3 // 2` is `1`, not
+  `0`, so the payout is `2`. Codex left the test RED and reported the
+  contradiction instead of bending the implementation to a false SPEC — which is
+  what a boundary scenario is for, even when the boundary catches its author.
+- **Codex cannot make checkpoint commits.** Its sandbox refuses writes to
+  `.git`, which is a deliberate protection and not something to relax for
+  convenience. Checkpoints move to Claude.
+- **Codex cannot run the gauntlet as specified.** `uv` lives outside the
+  workspace and the sandbox will not execute it. Codex declined to substitute
+  the `.venv` binaries and call them the specified commands, which is the
+  correct reading of the rule. Execution moves to Claude.
+
+**Revision 2** — rewritten after the Codex feasibility review raised ten
+findings, nine accepted:
+
+- Tier 2 → **Tier 3** on the §3 structural triggers, with a failure model added.
+  Codex raised it; the ratchet permits that and forbids arguing it down.
+- Added the **API** section. Revision 1 named `settle` without a return shape,
+  and mixed bare ranks with a `Card` type.
+- Defined the **settlement precedence** as an ordered list, and `PUSH` exactly.
+  Revision 1's PUSH property contradicted its own blackjack-versus-21 row.
+- **3:2 truncates**; stake 5 and stake 1 boundary scenarios added. Revision 1
+  demanded integer payouts and 3:2 without saying what an odd stake does.
+- Must NOT 1 is now enforced by a `sys.stdlib_module_names` test. The
+  import-linter contract names three modules and never enforced the invariant it
+  was mapped to.
+- Added the `random.getstate()` scenario. Revision 1's seed tests passed for the
+  globally-seeded implementation it forbade.
+- Shoe composition compares the full `(Rank, Suit)` multiset, not rank counts.
+- `PROJECT.md` and the CI workflow become editable for the Mutation row, which
+  could not fail as configured; the Cleanup threshold is lowered with a negative
+  control proving the gate works.
+
+**Revision 1** — initial. Scope settled in a `/grill-me` session covering 22
+decisions on rules, interface, stack and gauntlet.

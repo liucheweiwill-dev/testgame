@@ -41,7 +41,13 @@ jobs:
             --fail-under=100
 
       - name: Mutation
-        run: uv run mutmut run
+        run: |
+          uv run mutmut run
+          results="$(uv run mutmut results)"
+          if [ -n "$results" ]; then
+            printf '%s\n' "$results"
+            exit 1
+          fi
 
       - name: Property-based
         # pytest exits 5 when nothing is collected, so this fails if the suite
@@ -49,7 +55,7 @@ jobs:
         run: uv run pytest -m property -q
 
       - name: Cleanup
-        run: uv run ruff check --select F401,F811,F841 . && uv run vulture src
+        run: uv run ruff check --select F401,F811,F841 . && uv run vulture src tests
 
       - name: Architecture
         run: uv run lint-imports
