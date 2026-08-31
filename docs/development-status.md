@@ -4,20 +4,22 @@ One line per task, plus the decisions that outlive any single task.
 
 ## Where things stand
 
-**Task 001 is complete through step 9 and waiting on the step 10 merge
-authorisation.** Nothing has reached `main`.
+**Task 001 is merged.** Authorised by Will on 2026-08-31 and merged with
+`--no-ff` at `e2b6640`; the verified source state was `3fd7521` on
+`task/001-domain-core`. Nothing was pushed — this repository has no remote.
 
-Branch `task/001-domain-core`. Verified source state `3fd7521` — SPEC revision 6,
-all seven gauntlet layers run, three independent verification rounds, EVIDENCE
-written and reviewed, diff reviewed line by line.
+SPEC revision 6, seven gauntlet layers run, three independent verification
+rounds, EVIDENCE written and reviewed, diff reviewed line by line.
 
-The merge is the human's to authorise. Everything before it is done.
+**Task 002 has not started.** Read "Logged for task 002" and the open findings
+below before writing its SPEC — several should be fixed in the baseline first,
+and the greenfield Tier triggers affect how task 002 is tiered.
 
 ## Tasks
 
 | Task | Tier | Double-track | Result |
 |---|---|---|---|
-| 001 domain core | 3 | both | complete, awaiting merge authorisation |
+| 001 domain core | 3 | both | merged `e2b6640`, 2026-08-31 |
 
 ## The result worth keeping
 
@@ -162,6 +164,14 @@ exactly the sort of gap the verifier exists to notice". Three rounds read a row
 asserting CI runs mutation; none asked whether that CI existed. The verifier is
 pointed at the code and the contract, never at whether the evidence apparatus
 describes itself truthfully.
+
+**W7 — step 10 orders the status update before the merge it describes.** §2 step
+10 reads "Claude updates development-status.md; HUMAN AUTHORISES THE MERGE", so
+the file is written on the task branch while the merge is still hypothetical and
+can only be described in the future tense. Recording the merge as done then needs
+a second commit, which §12 says should not happen on the main branch. Here that
+was a doc-only correction committed directly to `main`; the alternative was
+leaving a merged `main` asserting it was still awaiting authorisation.
 
 **Greenfield Tier triggers.** §3 raises the Tier on "a new module" and "more than
 2 new services/classes". In a greenfield project both fire on the first task and
