@@ -153,25 +153,34 @@ Two of these change how task 002 is run, so read them before writing its SPEC:
   rule has to be set before the round runs rather than after reading its
   findings.
 
+**Two more came from running the update procedure itself**, at v2.5.0 and again
+at v2.5.1. Both are fixed in `BOOTSTRAP.md`, with no general-layer version bump,
+because nothing that gets copied into a project changed:
+
+- **The overwrite had no leak check at all.** It replaced the three
+  general-layer files unconditionally, on the stated assumption that they hold no
+  project content. A project that had edited one lost the edit silently — the
+  exact failure the procedure's own closing note warns about, and which it gave
+  no way to detect, because it compared nothing.
+- **The obvious form of that check fails towards merging.** A CRLF working tree
+  on one side and LF blobs on the other is enough to make a plain `diff` report
+  every line of every file as changed while nothing has leaked. Read naively it
+  says "everything leaked", and the reader's next move is the merge
+  `BOOTSTRAP.md` forbids.
+
+An earlier version of this file described the second as *the procedure's own
+check* being line-ending sensitive. That was wrong — there was no check to be
+sensitive, which made the finding larger than it was first filed as. Recorded
+here rather than silently rewritten.
+
 ## Open findings against the baseline
 
-Both are against `BOOTSTRAP.md`, which carries no version header, so neither
-moves the general layer on its own.
-
-**The update procedure never says to correct the project's own record.** It is
-overwrite, reconcile, report-to-the-human. Nothing tells it to fix the findings
-this project filed against the baseline once a release closes them. Left alone,
-a project keeps claiming defects that are fixed. Corrected by hand at both the
-v2.5.0 and v2.5.1 updates.
-
-**The leak check is line-ending sensitive, and fails towards the dangerous
-answer.** Before overwriting, the procedure has you confirm nothing
-project-specific leaked into a general-layer file. On Windows the baseline's
-working-tree copies are CRLF while a project's committed blobs are LF, so a
-plain `diff` reports every line of every file as changed when nothing has. That
-false positive points straight at the one action `BOOTSTRAP.md` forbids — "if a
-merge ever looks necessary, something project-specific leaked". Compare with
-`diff --strip-trailing-cr`, or against the same side of git.
+**No convention for versioning a `BOOTSTRAP.md`-only change.** That file is
+never copied into a project and carries no version header, so a fix to it moves
+no general-layer version. v2.4.1 marked one in its commit title anyway while the
+general layer stayed at v2.4.0 — which is why this file once said "now at general
+layer v2.4.1" while these files said v2.4.0. The two BOOTSTRAP fixes above
+deliberately did not repeat that, and the gap is still unfixed.
 
 ## Decisions
 
@@ -227,6 +236,6 @@ and add no structure.
 **2026-08-28 — Bootstrapped from `ai-sw-baseline`; updated to general layer
 v2.5.1 on 2026-08-31.** This project is also the baseline's first real
 execution. Defects found while running `BOOTSTRAP.md` (eight) and its update
-procedure (one) were reported back and fixed there across v2.2.0, v2.3.0,
-v2.4.0 and v2.4.1. Task 001's full run added eleven more, fixed in v2.5.0, and
+procedure (three) were reported back and fixed there across v2.2.0, v2.3.0,
+v2.4.0, v2.4.1 and the update-procedure repair that followed v2.5.1. Task 001's full run added eleven more, fixed in v2.5.0, and
 the "money" wording it had been reading narrowly was fixed in v2.5.1.
