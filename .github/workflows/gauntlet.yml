@@ -49,6 +49,14 @@ jobs:
             exit 1
           fi
 
+      - name: Show surviving mutants (diagnostic, scratch branch only)
+        if: failure()
+        run: |
+          uv run mutmut results | sed 's/^ *//' | grep ':' | sed 's/:.*//' | while read -r m; do
+            echo "===== $m ====="
+            uv run mutmut show "$m" || true
+          done
+
       - name: Property-based
         # pytest exits 5 when nothing is collected, so this fails if the suite
         # contains no property tests at all.
