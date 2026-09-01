@@ -1,3 +1,4 @@
+import hypothesis
 from dataclasses import dataclass
 from enum import Enum
 
