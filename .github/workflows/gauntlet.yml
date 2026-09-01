@@ -24,7 +24,7 @@ jobs:
         run: uv run pytest -q
 
       - name: Types
-        run: uv run mypy src
+        run: uv run mypy src tools
 
       - name: Lint + format
         run: uv run ruff check . && uv run ruff format --check .
@@ -35,19 +35,13 @@ jobs:
         # than silently degraded into an overall-coverage check.
         if: github.event_name == 'pull_request'
         run: |
-          uv run pytest --cov=src --cov-branch --cov-report=xml
+          uv run pytest --cov=src --cov=tools --cov-branch --cov-report=xml
           uv run diff-cover coverage.xml \
             --compare-branch=origin/${{ github.base_ref }} \
             --fail-under=100
 
       - name: Mutation
-        run: |
-          uv run mutmut run
-          results="$(uv run mutmut results)"
-          if [ -n "$results" ]; then
-            printf '%s\n' "$results"
-            exit 1
-          fi
+        run: uv run python tools/mutation_gate.py
 
       - name: Property-based
         # pytest exits 5 when nothing is collected, so this fails if the suite
@@ -55,7 +49,7 @@ jobs:
         run: uv run pytest -m property -q
 
       - name: Cleanup
-        run: uv run ruff check --select F401,F811,F841 . && uv run vulture src tests
+        run: uv run ruff check --select F401,F811,F841 . && uv run vulture src tests tools
 
       - name: Architecture
         run: uv run lint-imports
