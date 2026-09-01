@@ -4,23 +4,21 @@ One line per task, plus the decisions that outlive any single task.
 
 ## Where things stand
 
-**Task 001 is merged.** Authorised by Will on 2026-08-31 and merged with
-`--no-ff` at `e2b6640`; the verified source state was `3fd7521` on
-`task/001-domain-core`. Nothing was pushed — this repository has no remote.
+**Task 002 is merged** at `511afd3`, authorised by Will on 2026-09-01. The
+Mutation layer runs, and for the first time it can fail for a real reason.
 
-SPEC revision 6, seven gauntlet layers run, three independent verification
-rounds, EVIDENCE written and reviewed, diff reviewed line by line.
+**`main`'s CI is currently red, and the red is not a regression.** See the
+timeout finding below. Task 003 exists to fix it.
 
-**Task 002 has not started.** Read "Logged for task 002" before writing its
-SPEC. The baseline is now at v2.5.1, which fixed every finding this project has
-raised — the greenfield Tier triggers among them, so task 002 is no longer Tier
-3 by construction.
+**Task 003 is next**: treat a mutmut `timeout` as killed. Nothing else in the
+game has been built — `src/web/__init__.py` is still empty.
 
 ## Tasks
 
 | Task | Tier | Double-track | Result |
 |---|---|---|---|
 | 001 domain core | 3 | both | merged `e2b6640`, 2026-08-31 |
+| 002 gauntlet repair | 2 | both | merged `511afd3`, 2026-09-01 |
 
 ## The result worth keeping
 
@@ -50,6 +48,39 @@ verification rounds had that `PROJECT.md` row in front of them as a blind input.
 
 The gauntlet cannot show the SPEC expresses everything that matters. It also
 cannot show that the gauntlet's own description of itself is true.
+
+## What Task 002 found
+
+The Mutation layer had never produced a verdict on any machine. Repairing it took
+three CI runs to get it running and two more to get it green, and the moment it
+ran it found ten things in task 001's code — code that had passed three
+independent verification rounds, 60 tests, 100% changed-line coverage and six
+SPEC revisions.
+
+**Nine were one weakness.** No `pytest.raises` in the suite carried `match=`, so
+the tests asserted an exception was raised and never that it said anything.
+`raise ValueError("stake must be positive")` could become `raise ValueError(None)`
+and every other layer stayed silent. Fixed with anchored patterns — and the
+anchors are load-bearing, because `match=` uses `re.search`, so an unanchored
+pattern still accepts a padded message and that mutant lives.
+
+**The tenth was an equivalent mutant.** `cast(int, rank.value)` mutating to
+`cast(None, rank.value)` is behaviourally identical, so no test could kill it.
+SPEC 002 revision 2 had written the rule that such a result comes back for
+re-approval rather than being configured away, and that rule worked: revision 3
+permitted one edit under `src/`, replacing the cast with `int()`, which removes
+the equivalence at its source.
+
+**Then the step 9 diff review found two more that all eight layers and a 129/129
+mutation run had passed over.** The worst was a path-resolution bug that could
+have made the structural import check pass while inspecting zero modules. Neither
+automated layer could see it: the gauntlet only ever observed a passing test, and
+mutation scopes to `src/domain`, so it never mutates the test's own resolution
+logic.
+
+That is the second time in two tasks that a green result turned out to be a
+symptom of not being checked rather than evidence of being checked. The first was
+task 001's `CI only` claim for a layer that had never run.
 
 ## What Task 001 cost
 
@@ -172,6 +203,25 @@ An earlier version of this file described the second as *the procedure's own
 check* being line-ending sensitive. That was wrong — there was no check to be
 sensitive, which made the finding larger than it was first filed as. Recorded
 here rather than silently rewritten.
+
+## Open findings against this project
+
+**The Mutation layer is flaky under CI runner speed.** The same tree passed
+129/129 twice, at 10.09 and 10.13 mutations/second, then reported
+`domain.hand.x__total_and_soft__mutmut_7: timeout` on a runner managing 4.71/s.
+SPEC 002 revision 2 ruled that a timeout fails the layer, reasoning that a mutant
+nobody tested is not a mutant the tests caught. That reasoning holds for
+`not-checked`, `skipped` and `no-tests`, which genuinely ran nothing. It does not
+hold for `timeout`: something ran, and it diverged from the baseline observably.
+The line was drawn too coarsely, and only real runner variance could show it.
+Task 003 fixes it. Until then `main` is intermittently red for a non-reason,
+which is exactly how a gate becomes decoration.
+
+**`[tool.mutmut] paths_to_mutate` is deprecated** in favour of `source_paths`.
+A warning today. `pyproject.toml` was under `Do not modify` in SPEC 002.
+
+**The workflow's actions target Node 20**, which GitHub has deprecated;
+`actions/checkout@v4` and `astral-sh/setup-uv@v5` are being forced onto Node 24.
 
 ## Open findings against the baseline
 
