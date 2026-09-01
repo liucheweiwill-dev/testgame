@@ -2,7 +2,16 @@ import ast
 import sys
 from pathlib import Path
 
-DOMAIN_ROOT = Path(__file__).parents[1] / "src" / "domain"
+
+def _repository_root() -> Path:
+    test_path = Path(__file__).resolve()
+    for parent in test_path.parents:
+        if parent.name == "mutants":
+            return parent.parent
+    return test_path.parents[1]
+
+
+DOMAIN_ROOT = _repository_root() / "src" / "domain"
 
 
 def test_domain_imports_only_standard_library() -> None:
