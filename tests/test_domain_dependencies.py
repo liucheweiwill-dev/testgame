@@ -11,13 +11,25 @@ def _repository_root() -> Path:
     return test_path.parents[1]
 
 
-DOMAIN_ROOT = _repository_root() / "src" / "domain"
+REPOSITORY_ROOT = _repository_root()
+DOMAIN_ROOT = REPOSITORY_ROOT / "src" / "domain"
 
 
 def test_domain_imports_only_standard_library() -> None:
+    assert DOMAIN_ROOT.is_dir(), (
+        f"Repository root resolution failed: resolved {REPOSITORY_ROOT}; "
+        f"expected {DOMAIN_ROOT} to be an existing src/domain directory"
+    )
+
+    module_paths = sorted(DOMAIN_ROOT.rglob("*.py"))
+    assert module_paths, (
+        f"Repository root resolution failed: resolved {REPOSITORY_ROOT}; "
+        f"found no Python modules under {DOMAIN_ROOT}"
+    )
+
     violations: list[str] = []
 
-    for module_path in sorted(DOMAIN_ROOT.rglob("*.py")):
+    for module_path in module_paths:
         tree = ast.parse(
             module_path.read_text(encoding="utf-8"), filename=str(module_path)
         )
