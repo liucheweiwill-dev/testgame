@@ -48,12 +48,12 @@ def test_remaining_decreases_and_313th_deal_raises() -> None:
 
 
 def test_shoe_rejects_zero_decks() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"^decks must be at least 1$"):
         Shoe(decks=0, seed=1)
 
 
 def test_shoe_rejects_negative_decks() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"^decks must be at least 1$"):
         Shoe(decks=-1, seed=1)
 
 
