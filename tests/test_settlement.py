@@ -115,17 +115,17 @@ def test_blackjack_large_stake_uses_exact_integer_arithmetic() -> None:
 
 
 def test_settle_rejects_zero_stake() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"^stake must be positive$"):
         settle(_cards(Rank.KING), _cards(Rank.QUEEN), stake=0)
 
 
 def test_settle_rejects_negative_stake() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"^stake must be positive$"):
         settle(_cards(Rank.KING), _cards(Rank.QUEEN), stake=-5)
 
 
 def test_settle_rejects_fractional_float_stake() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match=r"^stake must be an integer$"):
         settle(
             _cards(Rank.ACE, Rank.KING),
             _cards(Rank.KING, Rank.QUEEN),
@@ -134,7 +134,7 @@ def test_settle_rejects_fractional_float_stake() -> None:
 
 
 def test_settle_rejects_exact_valued_float_stake() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match=r"^stake must be an integer$"):
         settle(
             _cards(Rank.ACE, Rank.KING),
             _cards(Rank.KING, Rank.QUEEN),
@@ -143,7 +143,7 @@ def test_settle_rejects_exact_valued_float_stake() -> None:
 
 
 def test_settle_rejects_string_stake() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match=r"^stake must be an integer$"):
         settle(
             _cards(Rank.ACE, Rank.KING),
             _cards(Rank.KING, Rank.QUEEN),
