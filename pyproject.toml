@@ -26,6 +26,7 @@ packages = ["src/domain", "src/web"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
     "property: a property-based test. The Property-based gauntlet layer runs only these, and pytest exits 5 when none are collected, so the layer fails if they all disappear.",
 ]
@@ -42,10 +43,10 @@ files = ["src"]
 src = ["src"]
 
 [tool.mutmut]
-paths_to_mutate = ["src/domain"]
+source_paths = ["src/domain", "tools"]
 
 [tool.vulture]
-paths = ["src", "tests"]
+paths = ["src", "tests", "tools"]
 min_confidence = 60
 
 [tool.importlinter]
