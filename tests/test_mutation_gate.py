@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import runpy
 import subprocess
 import sys
 import tomllib
@@ -136,6 +137,15 @@ def test_unrecognised_status_fails_and_names_it() -> None:
     assert "unrecognised status 'banana'" in output
 
 
+def test_duplicate_mutant_fails_and_names_it() -> None:
+    line = _result_line("survived")
+
+    exit_code, output, _ = _run_gate(line + line)
+
+    assert exit_code == 1
+    assert f"duplicate mutmut results line for mutant '{MUTANT}'" in output
+
+
 # Parsing scenarios.
 def test_four_space_result_line_is_parsed() -> None:
     assert mutation_gate.parse_results("    domain.x.y__mutmut_1: survived") == [
@@ -250,6 +260,256 @@ def test_empty_results_and_zero_generated_mutants_fails() -> None:
 
     assert exit_code == 1
     assert "no mutants were generated" in output
+
+
+def test_configured_mutmut_command_prefixes_each_producer_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "MUTATION_GATE_MUTMUT_COMMAND",
+        json.dumps(["custom-mutmut", "--isolated"]),
+    )
+
+    exit_code, output, runner = _run_gate("")
+
+    assert exit_code == 0
+    assert "mutation gate passed" in output
+    assert runner.calls == [
+        ("custom-mutmut", "--isolated", "run"),
+        ("custom-mutmut", "--isolated", "results"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "raw_command, expected_message",
+    [
+        pytest.param(
+            "not JSON",
+            "must be a JSON array of strings",
+            id="invalid-json",
+        ),
+        pytest.param(
+            json.dumps("mutmut"),
+            "must be a non-empty JSON array of non-empty strings",
+            id="not-an-array",
+        ),
+        pytest.param(
+            json.dumps([]),
+            "must be a non-empty JSON array of non-empty strings",
+            id="empty-array",
+        ),
+        pytest.param(
+            json.dumps([1]),
+            "must be a non-empty JSON array of non-empty strings",
+            id="non-string-part",
+        ),
+        pytest.param(
+            json.dumps([""]),
+            "must be a non-empty JSON array of non-empty strings",
+            id="empty-string-part",
+        ),
+    ],
+)
+def test_invalid_configured_mutmut_command_fails_before_starting_producer(
+    monkeypatch: pytest.MonkeyPatch,
+    raw_command: str,
+    expected_message: str,
+) -> None:
+    monkeypatch.setenv("MUTATION_GATE_MUTMUT_COMMAND", raw_command)
+    runner = StubRunner()
+    output = StringIO()
+
+    exit_code = mutation_gate.run_gate(runner=runner, output=output)
+
+    assert exit_code == 1
+    assert expected_message in output.getvalue()
+    assert runner.calls == []
+
+
+def test_producer_start_oserror_fails_and_names_stage() -> None:
+    def unavailable_runner(
+        command: Sequence[str],
+    ) -> subprocess.CompletedProcess[str]:
+        raise OSError(f"cannot execute {command[0]}")
+
+    output = StringIO()
+
+    exit_code = mutation_gate.run_gate(runner=unavailable_runner, output=output)
+
+    assert exit_code == 1
+    assert "mutmut run failed to start: cannot execute mutmut" in output.getvalue()
+
+
+def test_failed_producer_prints_stdout_and_stderr_as_separate_lines() -> None:
+    runner = StubRunner(
+        _completed(returncode=7, stdout="partial stdout", stderr="partial stderr")
+    )
+    output = StringIO()
+
+    exit_code = mutation_gate.run_gate(runner=runner, output=output)
+
+    assert exit_code == 1
+    assert output.getvalue().splitlines() == [
+        "mutmut run failed with exit code 7",
+        "partial stdout",
+        "partial stderr",
+    ]
+
+
+def test_failed_producer_preserves_terminated_stdout_without_blank_line() -> None:
+    runner = StubRunner(_completed(returncode=7, stdout="producer output\n"))
+    output = StringIO()
+
+    exit_code = mutation_gate.run_gate(runner=runner, output=output)
+
+    assert exit_code == 1
+    assert output.getvalue() == (
+        "mutmut run failed with exit code 7\nproducer output\n"
+    )
+
+
+def test_missing_generated_mutant_count_fails_closed() -> None:
+    exit_code, output, _ = _run_gate("", run_output="run completed without summary\n")
+
+    assert exit_code == 1
+    assert "could not read the generated-mutant count from mutmut run" in output
+
+
+@pytest.mark.parametrize(
+    "retry_output",
+    [
+        pytest.param("retry completed without a budget report\n", id="missing"),
+        pytest.param(
+            _retry_run_output() + _retry_run_output(30.0, 60.0),
+            id="duplicate",
+        ),
+    ],
+)
+def test_retry_fails_when_it_does_not_report_exactly_one_raised_budget(
+    retry_output: str,
+) -> None:
+    exit_code, output, runner = _run_gate(
+        _result_line("timeout"),
+        _completed(stdout=retry_output),
+    )
+
+    assert exit_code == 1
+    assert f"{MUTANT}: timeout; retry budget invalid" in output
+    assert "timeout retry did not report exactly one raised budget" in output
+    assert len(runner.calls) == 3
+
+
+def test_retry_fails_when_reported_budget_was_not_raised() -> None:
+    exit_code, output, runner = _run_gate(
+        _result_line("timeout"),
+        _completed(stdout=_retry_run_output(15.0, 15.0)),
+    )
+
+    assert exit_code == 1
+    assert f"{MUTANT}: timeout; retry budget invalid" in output
+    assert "timeout retry budget was not raised: timeout_multiplier=15 -> 15" in output
+    assert len(runner.calls) == 3
+
+
+def test_retry_producer_failure_exits_one_and_names_stage() -> None:
+    exit_code, output, runner = _run_gate(
+        _result_line("timeout"),
+        _completed(returncode=7, stderr="retry producer exploded\n"),
+    )
+
+    assert exit_code == 1
+    assert "mutmut retry for" in output
+    assert "failed with exit code 7" in output
+    assert f"{MUTANT}: timeout; retry producer failed" in output
+    assert "retry producer exploded" in output
+    assert len(runner.calls) == 3
+
+
+def test_retry_result_producer_failure_exits_one_and_names_stage() -> None:
+    exit_code, output, runner = _run_gate(
+        _result_line("timeout"),
+        _completed(stdout=_retry_run_output()),
+        _completed(returncode=8, stderr="retry results exploded\n"),
+    )
+
+    assert exit_code == 1
+    assert "mutmut results after retry failed with exit code 8" in output
+    assert f"{MUTANT}: timeout; retry result producer failed" in output
+    assert "timeout_multiplier=15 -> 30" in output
+    assert "retry results exploded" in output
+    assert len(runner.calls) == 4
+
+
+def test_malformed_retry_result_exits_one_and_names_stage() -> None:
+    malformed = "retry results are malformed"
+    exit_code, output, runner = _run_gate(
+        _result_line("timeout"),
+        _completed(stdout=_retry_run_output()),
+        _completed(stdout=malformed),
+    )
+
+    assert exit_code == 1
+    assert f"{MUTANT}: timeout; retry result malformed" in output
+    assert "timeout_multiplier=15 -> 30" in output
+    assert "mutation gate failed: malformed mutmut results line" in output
+    assert repr(malformed) in output
+    assert len(runner.calls) == 4
+
+
+def test_main_uses_real_runner_with_utf8_subprocess_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("MUTATION_GATE_MUTMUT_COMMAND", raising=False)
+    responses = [
+        _completed(stdout=RUN_OUTPUT),
+        _completed(stdout=""),
+    ]
+    calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
+
+    def stub_subprocess_run(
+        command: Sequence[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append((tuple(command), kwargs))
+        return responses.pop(0)
+
+    monkeypatch.setattr(mutation_gate.subprocess, "run", stub_subprocess_run)
+
+    exit_code = mutation_gate.main()
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == "mutation gate passed: 129 mutants generated\n"
+    assert [command for command, _ in calls] == [
+        ("mutmut", "run"),
+        ("mutmut", "results"),
+    ]
+    assert responses == []
+    for _, kwargs in calls:
+        environment = kwargs["env"]
+        assert isinstance(environment, dict)
+        assert environment["PYTHONIOENCODING"] == "utf-8"
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is True
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["check"] is False
+
+
+def test_script_guard_turns_configuration_failure_into_process_exit_one(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("MUTATION_GATE_MUTMUT_COMMAND", "not JSON")
+
+    with pytest.raises(SystemExit) as raised:
+        runpy.run_path(
+            str(REPOSITORY_ROOT / "tools/mutation_gate.py"),
+            run_name="__main__",
+        )
+
+    assert raised.value.code == 1
+    assert (
+        "MUTATION_GATE_MUTMUT_COMMAND must be a JSON array" in capsys.readouterr().out
+    )
 
 
 # The gate's own gauntlet-scope scenarios.
