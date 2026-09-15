@@ -1,7 +1,7 @@
 # AGENTS.md — Dual-Agent Development Baseline
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.5.1 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.6.0 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- To update: replace this whole file verbatim. Never merge.     -->
@@ -361,15 +361,28 @@ configured effort applies to every invocation unless overridden per call:
 codex exec -c model_reasoning_effort=<lower> -s workspace-write "<lower-Tier prompt>"
 ```
 
-**Configure the default at the highest effort any Tier uses, and override
-downward.** Forgetting an override should then cost money, not assurance: a
-missed downward override on a trivial change wastes reasoning, while a missed
-upward override on a high-stakes one silently under-thinks it. Choose the
-failure that is expensive over the one that is quiet.
+**Configure the default at the highest effort any row in `PROJECT.md` uses, and
+override downward.** Forgetting an override should then cost money, not
+assurance: a missed downward override on a trivial change wastes reasoning,
+while a missed upward override on a high-stakes one silently under-thinks it.
+Choose the failure that is expensive over the one that is quiet.
 
 Never raise effort *because a task feels harder than its Tier*. If it needs more
 reasoning than its Tier implies, the Tier is wrong — raise the Tier (§3), and
 the effort follows. `PROJECT.md` records the effort for each Tier.
+
+**The feasibility review's effort is not the Tier's.** It runs before the human
+approves the SPEC (§2 step 3), against a plan rather than code, and the defects
+it looks for — a contradiction in the contract, a scenario the SPEC never
+states, a Tier proposed too low — are the cheapest to fix and the most expensive
+to miss, because every later layer checks the code against that contract and
+never the contract itself.
+
+Deriving it from the Tier gets this backwards: a task proposed as Tier 1 would
+be reviewed at Tier 1 effort, and raising the Tier is one of the things the
+review exists to do (§1, §3). Set it once, at or above the highest effort any
+builder row uses, and record it as its own row in `PROJECT.md`. It then needs no
+per-call override — the configured default is already at its level.
 
 **A round trip that decides nothing may run below its Tier.** Applying a decision
 already made — a formatting fix, a renamed test, a corrected constant, a stale
@@ -503,7 +516,7 @@ the list of fields; that file owns the answers.** Required fields:
 | Commands | install, build, test, lint, typecheck |
 | Gauntlet commands | one row per layer in §5, plus the architecture check |
 | Branches | main branch name, task branch naming |
-| Agent models | builder and verifier models, effort per Tier, fallback, sandbox and approval policy in force |
+| Agent models | feasibility review, builder and verifier models, effort per Tier, fallback, sandbox and approval policy in force |
 | Project-specific safety | anything beyond §10, or `none` |
 
 **Reconcile after every baseline update.** A new release may add a required
@@ -535,11 +548,13 @@ How to fill each field:
 - **Changed-line coverage** needs both a comparison base and a threshold, or it
   cannot fail and is not a layer.
 - **Cleanup** must exit non-zero on findings; a report-only run is not a layer.
-- **Agent models** — one row per Tier for the builder, plus the Tier 3 verifier,
-  each with its model and reasoning effort (§11). The verifier is a different
-  model and the strongest one available other than the builder's; record the
-  human's judgement of the capability gap, not an inference from the name.
-  Record the configured default effort too, so a missing per-call override is
-  visible rather than assumed.
+- **Agent models** — one row for the feasibility review, one per Tier for the
+  builder, plus the Tier 3 verifier, each with its model and reasoning effort
+  (§11). The review's row is not derived from the Tier and sits at or above the
+  highest effort any builder row uses. The verifier is a different model and the
+  strongest one available other than the builder's; record the human's judgement
+  of the capability gap, not an inference from the name. Record the configured
+  default effort too, so a missing per-call override is visible rather than
+  assumed.
 - **Project-specific safety** — anything beyond §10. Write `none` if there is
   nothing; do not leave it empty.

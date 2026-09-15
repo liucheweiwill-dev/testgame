@@ -67,14 +67,16 @@ Architecture check: `uv run lint-imports` (import-linter; the contract lives in
 
 | Role | Model | Reasoning effort |
 |---|---|---|
+| Feasibility review | `gpt-5.6-sol` | `xhigh` |
 | Builder, Tier 1 | `gpt-5.6-sol` | `medium` |
 | Builder, Tier 2 | `gpt-5.6-sol` | `high` |
 | Builder, Tier 3 | `gpt-5.6-sol` | `xhigh` |
 | Verifier, Tier 3 | `gpt-5.5` | `xhigh` |
 
-Configured default effort: `xhigh` — the highest any Tier uses, so a forgotten
-per-call override wastes reasoning instead of quietly under-thinking a Tier 3
-change. Tier 1 and Tier 2 override downward with
+Configured default effort: `xhigh` — the highest any row above uses, so a
+forgotten per-call override wastes reasoning instead of quietly under-thinking a
+Tier 3 change. The feasibility review runs at the default and needs no override
+(§11). Tier 1 and Tier 2 override downward with
 `-c model_reasoning_effort=medium` and `=high`.
 
 Capability gap between builder and verifier: the builder uses `gpt-5.6-sol`,

@@ -249,6 +249,14 @@ oversight, and `none` is a decision.
 
 ## Decisions
 
+**2026-09-15 — The feasibility review runs at `xhigh`, independent of the
+Tier.** Adopted with general layer v2.6.0, which gives the review its own row in
+`PROJECT.md`. Before it the review inherited the proposed Tier's effort, so a
+task proposed as Tier 1 was reviewed at Tier 1 effort — and raising the Tier is
+one of the things the review exists to do. The builder rows are unchanged at
+`medium` / `high` / `xhigh`: the Tier still governs implementation effort, and
+`xhigh` equals the highest of them, so the review needs no per-call override.
+
 **2026-08-31 — Verification terminates when a round finds no divergence.**
 Contract-completeness findings from that round are logged and triaged, and a
 revision that closes a contract gap without fixing a code defect does not re-open
@@ -299,7 +307,7 @@ rule is fixed, deliberately, to keep the combination space testable.
 and add no structure.
 
 **2026-08-28 — Bootstrapped from `ai-sw-baseline`; updated to general layer
-v2.5.1 on 2026-08-31.** This project is also the baseline's first real
+v2.6.0 on 2026-09-15.** This project is also the baseline's first real
 execution. Defects found while running `BOOTSTRAP.md` (eight) and its update
 procedure (three) were reported back and fixed there across v2.2.0, v2.3.0,
 v2.4.0, v2.4.1 and the update-procedure repair that followed v2.5.1. Task 001's full run added eleven more, fixed in v2.5.0, and
