@@ -1,7 +1,7 @@
 # AGENTS.md — Dual-Agent Development Baseline
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.6.0 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.7.0 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- To update: replace this whole file verbatim. Never merge.     -->
@@ -24,7 +24,7 @@ then record `roles: single-agent (correlation not broken)`.
 
 | Role | Owns |
 |---|---|
-| **Claude Code** | Architecture, SPEC authoring, Tier proposal, EVIDENCE review, line-by-line diff review, status log. Does not write feature code. |
+| **Claude Code** | Architecture, SPEC authoring, Tier proposal, invoking Codex (§11), EVIDENCE review, line-by-line diff review, status log. Does not write feature code. |
 | **Codex** | Feasibility review `[dual-agent]`, implementation, gauntlet, EVIDENCE. May raise Tier, never lower it. |
 | **Human** | Approves the SPEC. This is the only step that breaks the "everything authored by the same agent" correlation. |
 | **Verifier** | Tier 3 only. A fresh Codex session on a **different model**, read-only, given exactly four blind inputs. |
@@ -336,6 +336,25 @@ codex exec -s read-only      "<feasibility review prompt>"   step 2
 codex exec -s workspace-write "<build prompt>"               steps 4-5, 8
 codex exec -m <verifier-model> -s read-only "<verifier prompt>"   step 7, Tier 3
 ```
+
+**Claude runs these calls; the human does not relay them.** A person pasting
+prompts between two agents adds latency and a transcription surface and nothing
+else — the adversary's independence comes from Codex being a different model
+reading the actual repository, not from who pressed return.
+
+The cost is that the agent under review now commissions its own review: Claude
+writes the SPEC, writes the prompt, reads the findings, and decides which to
+accept. Two things keep that honest, and both are required. **The prompt names
+what to attack and never defends the SPEC** — point it at the parts you are
+least sure of, because a prompt that argues the design's case steers the result,
+and a steered review is worse than none, since it still reads as assurance. And
+**EVIDENCE says, under Honest notes (§6), that the same agent authored the SPEC
+and commissioned its review** — the approval gate at §2 step 3 does not cover
+this one, because it sees the revised SPEC and not the review that shaped it.
+
+For the Tier 3 verifier the four inputs below are assembled verbatim, never
+summarised. Claude choosing what the adversary is allowed to see is the one
+place this arrangement could quietly become theatre.
 
 **The feasibility review is read-only, and that is not a detail.** It happens
 before the human approves the SPEC (§2 step 3). Giving it write access lets an

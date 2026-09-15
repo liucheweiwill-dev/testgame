@@ -249,6 +249,21 @@ oversight, and `none` is a decision.
 
 ## Decisions
 
+**2026-09-15 — Claude invokes Codex directly; nothing is relayed through a
+human.** Adopted with general layer v2.7.0. The independence that matters comes
+from Codex being a different model reading this repository, not from who pressed
+return — a person pasting prompts between two agents added latency and a
+transcription surface and nothing else.
+
+The cost is that the agent under review now commissions its own review, and §11
+requires two things of every task from 003 onward because of it. The review
+prompt names what to attack and never defends the SPEC; a steered review still
+reads as assurance. And **EVIDENCE must say, under Honest notes, that the same
+agent authored the SPEC and commissioned its review** — the approval gate at §2
+step 3 does not cover this, since it sees the revised SPEC and not the review
+that shaped it. Task 003 is the first task run under this rule and its EVIDENCE
+carries that line.
+
 **2026-09-15 — The feasibility review runs at `xhigh`, independent of the
 Tier.** Adopted with general layer v2.6.0, which gives the review its own row in
 `PROJECT.md`. Before it the review inherited the proposed Tier's effort, so a
@@ -307,7 +322,7 @@ rule is fixed, deliberately, to keep the combination space testable.
 and add no structure.
 
 **2026-08-28 — Bootstrapped from `ai-sw-baseline`; updated to general layer
-v2.6.0 on 2026-09-15.** This project is also the baseline's first real
+v2.7.0 on 2026-09-15.** This project is also the baseline's first real
 execution. Defects found while running `BOOTSTRAP.md` (eight) and its update
 procedure (three) were reported back and fixed there across v2.2.0, v2.3.0 and
 v2.4.0, plus two `BOOTSTRAP.md`-only commits that moved no version line. One of
