@@ -16,7 +16,8 @@ that under its own heading and does not claim the Tier 3 bar was met.
 **Nothing in the game has been built yet** — `src/web/__init__.py` is still
 empty. Three tasks have gone into making the gauntlet trustworthy.
 
-**No task is in progress.** When one starts, say so here *and* name its branch.
+**No task is in progress.** When one starts, say so here *and* name its branch —
+`AGENTS.md` §13 requires it as of v2.8.0, and this project is why.
 This file said "Task 003 is next" for a fortnight while task 003 was already
 implemented and gauntlet-green on `task/003-mutation-gate`, and on 2026-09-15
 that cost a duplicate SPEC written from scratch by an agent that trusted this
@@ -286,18 +287,20 @@ actually happened in that run.
 
 ## Open findings against the baseline
 
-**A status log cannot express "in progress", and no step requires looking for
-a branch.** `AGENTS.md` §13 defines this file as cross-task decisions plus one
-result line per task — a record of what finished. A task that has started and
-not merged has no place in it, so this file said "Task 003 is next" while task
-003 was implemented, gauntlet-green and awaiting CI on its branch. On 2026-09-15
-an agent read that line, took it as current, and wrote a duplicate SPEC 003 from
-scratch; the feasibility review it then commissioned spent a budget re-deriving
-findings the approved SPEC already contained. §2 step 1 creates the task branch
-before the SPEC is written, so a branch is the earliest durable evidence a task
-exists — and nothing tells the next reader to go and look.
+**None.** The finding this section held — that a status log cannot express *in
+progress*, and no step required looking for a branch — was filed on 2026-09-15
+after it cost this project a duplicate SPEC 003, and closed the same day in
+general layer **v2.8.0**. §13 now says this file carries the branch of any task
+in progress, and §12 says to look for an existing task branch before starting
+one, stating plainly that nothing checks the second half. The reader-side half
+is the load-bearing one: git cannot go stale, a line someone forgot to update
+can.
 
-The previous entry here — no convention for versioning a `BOOTSTRAP.md`-only
+Unlike the two `BOOTSTRAP.md`-only repairs above, this fix shipped a release, so
+the update procedure's step 3 is what retired the entry rather than a message
+from the maintainer.
+
+The entry before that — no convention for versioning a `BOOTSTRAP.md`-only
 change, which is why this file once said "now at general layer v2.4.1" while
 these files said v2.4.0 — was closed on 2026-09-15 and is recorded above.
 
@@ -392,7 +395,7 @@ rule is fixed, deliberately, to keep the combination space testable.
 and add no structure.
 
 **2026-08-28 — Bootstrapped from `ai-sw-baseline`; updated to general layer
-v2.7.1 on 2026-09-15.** This project is also the baseline's first real
+v2.8.0 on 2026-09-15.** This project is also the baseline's first real
 execution. Defects found while running `BOOTSTRAP.md` (eight) and its update
 procedure (three) were reported back and fixed there across v2.2.0, v2.3.0 and
 v2.4.0, plus two `BOOTSTRAP.md`-only commits that moved no version line. One of

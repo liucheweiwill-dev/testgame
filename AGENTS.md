@@ -1,7 +1,7 @@
 # AGENTS.md — Dual-Agent Development Baseline
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.7.1 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.8.0 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- To update: replace this whole file verbatim. Never merge.     -->
@@ -337,6 +337,8 @@ codex exec -s workspace-write "<build prompt>"               steps 4-5, 8
 codex exec -m <verifier-model> -s read-only "<verifier prompt>"   step 7, Tier 3
 ```
 
+### 11.1 Making the call
+
 **Claude runs these calls; the human does not relay them.** A person pasting
 prompts between two agents adds latency and a transcription surface and nothing
 else — the adversary's independence comes from Codex being a different model
@@ -352,19 +354,13 @@ and a steered review is worse than none, since it still reads as assurance. And
 and commissioned its review** — the approval gate at §2 step 3 does not cover
 this one, because it sees the revised SPEC and not the review that shaped it.
 
-For the Tier 3 verifier the four inputs below are assembled verbatim, never
-summarised. Claude choosing what the adversary is allowed to see is the one
-place this arrangement could quietly become theatre.
-
 **Check the call's own exit status, and never wrap it in a pipeline.** A
 `codex exec` that stopped partway — a quota, an auth failure, a dropped
 connection — can still leave the shell reporting success, and piping its output
-through anything replaces that status with the last command in the chain.
-`SETUP.md` §5 has carried this warning since the CLI was invoked by hand, and it
-binds harder now that Claude makes the calls: **a review that died silently and a
-review that found nothing look identical**, because both are an absence of
-findings. Before reading an empty result as *no objections*, confirm the run
-reached its end.
+through anything replaces that status with the last command in the chain
+(`SETUP.md` §5). **A review that died silently and a review that found nothing
+look identical**, because both are an absence of findings. Before reading an
+empty result as *no objections*, confirm the run reached its end.
 
 **The feasibility review is read-only, and that is not a detail.** It happens
 before the human approves the SPEC (§2 step 3). Giving it write access lets an
@@ -383,6 +379,8 @@ policy in `PROJECT.md`.
 Do not pass `--add-dir` — the workspace is the blast radius.
 **`--dangerously-bypass-approvals-and-sandbox` is forbidden.**
 
+### 11.2 Reasoning effort
+
 **Reasoning effort scales with the Tier, not with the caller's habit.** The
 configured effort applies to every invocation unless overridden per call:
 
@@ -400,18 +398,12 @@ Never raise effort *because a task feels harder than its Tier*. If it needs more
 reasoning than its Tier implies, the Tier is wrong — raise the Tier (§3), and
 the effort follows. `PROJECT.md` records the effort for each Tier.
 
-**The feasibility review's effort is not the Tier's.** It runs before the human
-approves the SPEC (§2 step 3), against a plan rather than code, and the defects
-it looks for — a contradiction in the contract, a scenario the SPEC never
-states, a Tier proposed too low — are the cheapest to fix and the most expensive
-to miss, because every later layer checks the code against that contract and
-never the contract itself.
-
-Deriving it from the Tier gets this backwards: a task proposed as Tier 1 would
-be reviewed at Tier 1 effort, and raising the Tier is one of the things the
-review exists to do (§1, §3). Set it once, at or above the highest effort any
-builder row uses, and record it as its own row in `PROJECT.md`. It then needs no
-per-call override — the configured default is already at its level.
+**The feasibility review's effort is not the Tier's.** Deriving it from the Tier
+gets the review backwards: a task proposed as Tier 1 would be reviewed at Tier 1
+effort, and raising the Tier is one of the things the review exists to do (§1,
+§3). Set it once, at or above the highest effort any builder row uses, and
+record it as its own row in `PROJECT.md`. It then needs no per-call override —
+the configured default is already at its level.
 
 **A round trip that decides nothing may run below its Tier.** Applying a decision
 already made — a formatting fix, a renamed test, a corrected constant, a stale
@@ -420,6 +412,8 @@ still governs the *task*: its layers, its verification and its double track are
 untouched, and the reduction applies to one call, not to the work. The test is
 whether the call has a judgement to make. If it does, it runs at the Tier's
 effort however small the diff looks.
+
+### 11.3 Independent verification (Tier 3)
 
 **Choosing the verifier's model.** It must differ from the builder's — that
 difference is the whole point, since two runs of one model share their blind
@@ -434,7 +428,9 @@ say in EVIDENCE which is stronger and by what evidence, and claim proportionally
 less from a verification run by the weaker one. A stated gap is auditable; an
 unsatisfiable equality requirement is not.
 
-The verifier receives exactly four inputs and nothing else:
+The verifier receives exactly four inputs, assembled verbatim and never
+summarised — choosing what the adversary is allowed to see is the one place this
+arrangement could quietly become theatre:
 
 1. **The approved SPEC**, at the revision the human approved — including every
    revision approved since the first one. It is the whole contract; there is no
@@ -489,6 +485,14 @@ Checkpoint commits are free: they are working state, not the deliverable, and
 they need no authorisation. **The human authorises what reaches the main branch,
 not each commit on the way there** — that is the gate in §2 step 10.
 
+**Look for an existing task branch before starting one.** `git branch -a` is the
+only current answer to what is already underway: the status log records what
+finished (§13), so a task that started and has not merged leaves no trace there,
+and a line naming which task is *next* goes on saying it weeks into that task's
+work. Beginning one twice costs a duplicate SPEC and the review commissioned
+against it. Nothing checks this, so it is a preference; the branch is simply the
+earliest durable evidence a task exists, since step 1 creates it before the SPEC.
+
 **One file may be committed directly to the main branch: the status log.** It
 records what the merge did, so it cannot be finished before the merge exists.
 That is why step 10 authorises the merge first and writes the log second.
@@ -520,8 +524,9 @@ ARCHITECTURE.md                 dependency direction + forbidden edges. Short. L
 SETUP.md                        what to install; humans run the commands
 docs/<NNN-kebab-slug>/SPEC.md       revised in place; each revision re-approved (§4)
 docs/<NNN-kebab-slug>/EVIDENCE.md   rewritten on every gauntlet run
-docs/development-status.md      cross-task decisions and their reasons;
-                                one result line per task. Not a second log.
+docs/development-status.md      cross-task decisions and their reasons; one
+                                result line per task, and the branch of any
+                                task in progress. Not a second log.
 ```
 
 `CLAUDE.md`, `AGENTS.md` and `SETUP.md` are general layer from top to bottom and
