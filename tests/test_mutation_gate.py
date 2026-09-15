@@ -892,3 +892,109 @@ def test_run_command_does_not_mutate_the_parent_environment(
 
     assert seen[0]["PYTHONIOENCODING"] == "utf-8"
     assert "PYTHONIOENCODING" not in os.environ
+
+
+# Second mutation round. The remaining thirteen survivors were read out of the
+# mutant source mutmut generates, rather than guessed: ten were the label and
+# output arguments of _invoke, which are only observable when that particular
+# call raises OSError, and the first round only ever failed the first call.
+class _FailingRunner:
+    def __init__(
+        self, *responses: subprocess.CompletedProcess[str], error: str
+    ) -> None:
+        self.responses = list(responses)
+        self.error = error
+        self.calls: list[tuple[str, ...]] = []
+
+    def __call__(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        self.calls.append(tuple(command))
+        if not self.responses:
+            raise OSError(self.error)
+        return self.responses.pop(0)
+
+
+def _run_gate_with(runner: _FailingRunner) -> tuple[int, str]:
+    output = StringIO()
+    exit_code = mutation_gate.run_gate(runner=runner, output=output)
+    return exit_code, output.getvalue()
+
+
+def test_results_producer_start_oserror_names_the_results_stage() -> None:
+    exit_code, output = _run_gate_with(
+        _FailingRunner(_completed(stdout=RUN_OUTPUT), error="boom")
+    )
+
+    assert exit_code == 1
+    assert output == "mutmut results failed to start: boom\n"
+
+
+def test_retry_producer_start_oserror_names_the_retry_stage() -> None:
+    exit_code, output = _run_gate_with(
+        _FailingRunner(
+            _completed(stdout=RUN_OUTPUT),
+            _completed(stdout=_result_line("timeout")),
+            error="boom",
+        )
+    )
+
+    assert exit_code == 1
+    assert output == (
+        f"mutmut retry for {MUTANT} failed to start: boom\n"
+        f"    {MUTANT}: timeout; retry producer failed\n"
+    )
+
+
+def test_results_after_retry_start_oserror_names_that_stage() -> None:
+    exit_code, output = _run_gate_with(
+        _FailingRunner(
+            _completed(stdout=RUN_OUTPUT),
+            _completed(stdout=_result_line("timeout")),
+            _completed(stdout=_retry_run_output()),
+            error="boom",
+        )
+    )
+
+    assert exit_code == 1
+    assert output == (
+        "mutmut results after retry failed to start: boom\n"
+        f"    {MUTANT}: timeout; retry result producer failed; "
+        "timeout_multiplier=15 -> 30\n"
+    )
+
+
+def test_separator_in_a_mutant_name_splits_at_the_first_occurrence() -> None:
+    # partition, not rpartition. With rpartition this line would quietly parse
+    # as the mutant "a: b" with status "survived" instead of being rejected.
+    line = "    a: b: survived"
+
+    with pytest.raises(mutation_gate.GateError) as raised:
+        mutation_gate.parse_results(line)
+
+    assert str(raised.value) == "unrecognised status 'b: survived' for mutant 'a'"
+
+
+def test_missing_generated_mutant_count_message_is_exact() -> None:
+    exit_code, output, _ = _run_gate("", run_output="run completed without summary\n")
+
+    assert exit_code == 1
+    assert output == (
+        "mutation gate failed: could not read the generated-mutant count "
+        "from mutmut run\n"
+    )
+
+
+def test_undecodable_command_message_is_exact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MUTATION_GATE_MUTMUT_COMMAND", "not JSON")
+    runner = StubRunner()
+    output = StringIO()
+
+    exit_code = mutation_gate.run_gate(runner=runner, output=output)
+
+    assert exit_code == 1
+    assert output.getvalue() == (
+        "mutation gate failed: MUTATION_GATE_MUTMUT_COMMAND must be a JSON "
+        "array of strings\n"
+    )
+    assert runner.calls == []
