@@ -204,6 +204,22 @@ check* being line-ending sensitive. That was wrong — there was no check to be
 sensitive, which made the finding larger than it was first filed as. Recorded
 here rather than silently rewritten.
 
+**A third is fixed in `ai-sw-baseline` commit `4135875`, on 2026-09-15** — the
+versioning gap filed below. Its `CLAUDE.md` now states both halves: a version
+bump gets an annotated tag, and a commit touching only `BOOTSTRAP.md` or
+`README.md` carries no version in its subject, because labelling one invents a
+release no file records. The same commit tagged all eleven historical releases —
+until they existed, the leak check added after v2.5.1 named a release git could
+not resolve, so it could not be run as written — and widened step 9, which
+verified one of the three general-layer files it describes, with a line-ending
+sensitive `diff`.
+
+**That fix reached here through no release, and could not have.** It changes no
+general-layer file, so nothing here was going to be overwritten and step 3 —
+what retires a closed finding — would never have run. The finding below would
+have sat claiming to be open indefinitely. The baseline now records the
+obligation to say so directly, as a preference, since nothing can check it.
+
 ## Open findings against this project
 
 **The Mutation layer is flaky under CI runner speed.** The same tree passed
@@ -225,12 +241,11 @@ A warning today. `pyproject.toml` was under `Do not modify` in SPEC 002.
 
 ## Open findings against the baseline
 
-**No convention for versioning a `BOOTSTRAP.md`-only change.** That file is
-never copied into a project and carries no version header, so a fix to it moves
-no general-layer version. v2.4.1 marked one in its commit title anyway while the
-general layer stayed at v2.4.0 — which is why this file once said "now at general
-layer v2.4.1" while these files said v2.4.0. The two BOOTSTRAP fixes above
-deliberately did not repeat that, and the gap is still unfixed.
+**None.** The one finding this section held — no convention for versioning a
+`BOOTSTRAP.md`-only change, which is why this file once said "now at general
+layer v2.4.1" while these files said v2.4.0 — was closed on 2026-09-15 and is
+recorded above. Stated rather than deleted: an empty section reads as an
+oversight, and `none` is a decision.
 
 ## Decisions
 
