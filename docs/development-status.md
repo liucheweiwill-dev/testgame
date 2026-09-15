@@ -4,14 +4,24 @@ One line per task, plus the decisions that outlive any single task.
 
 ## Where things stand
 
-**Task 002 is merged** at `511afd3`, authorised by Will on 2026-09-01. The
-Mutation layer runs, and for the first time it can fail for a real reason.
+**Task 003 is merged** at `d9ae07a`, authorised by Will on 2026-09-15. The
+Mutation layer now judges the gate that produces its verdict: 446 mutants, none
+non-killed, against 129 when only `src/domain` was in scope. `main` is green.
 
-**`main`'s CI is currently red, and the red is not a regression.** See the
-timeout finding below. Task 003 exists to fix it.
+**It merged with a known gap.** Task 003 is Tier 3 and its independent
+verification was not performed — the Codex budget ran out mid-task, which also
+made the repair phase single-agent. `docs/003-mutation-gate/EVIDENCE.md` records
+that under its own heading and does not claim the Tier 3 bar was met.
 
-**Task 003 is next**: treat a mutmut `timeout` as killed. Nothing else in the
-game has been built — `src/web/__init__.py` is still empty.
+**Nothing in the game has been built yet** — `src/web/__init__.py` is still
+empty. Three tasks have gone into making the gauntlet trustworthy.
+
+**No task is in progress.** When one starts, say so here *and* name its branch.
+This file said "Task 003 is next" for a fortnight while task 003 was already
+implemented and gauntlet-green on `task/003-mutation-gate`, and on 2026-09-15
+that cost a duplicate SPEC written from scratch by an agent that trusted this
+line and never ran `git branch -r`. A log that cannot say *in progress* reads as
+*not started*.
 
 ## Tasks
 
@@ -19,6 +29,7 @@ game has been built — `src/web/__init__.py` is still empty.
 |---|---|---|---|
 | 001 domain core | 3 | both | merged `e2b6640`, 2026-08-31 |
 | 002 gauntlet repair | 2 | both | merged `511afd3`, 2026-09-01 |
+| 003 mutation gate | 3 | partial — see EVIDENCE | merged `d9ae07a`, 2026-09-15 |
 
 ## The result worth keeping
 
@@ -48,6 +59,40 @@ verification rounds had that `PROJECT.md` row in front of them as a blind input.
 
 The gauntlet cannot show the SPEC expresses everything that matters. It also
 cannot show that the gauntlet's own description of itself is true.
+
+## What Task 003 found
+
+**Three defects in one task, each hidden by the one before it.**
+
+The layer had never mutated the gate at all. `tests/test_mutation_gate.py`
+resolved every path with `parents[1]`, which under mutmut is the `mutants/`
+working copy. mutmut copies only the source it mutates, so `PROJECT.md`, the
+workflow and `pyproject.toml` were absent there, and the gauntlet-scope tests
+died on `FileNotFoundError` during stats collection — the Mutation step aborted
+before a single mutant ran. `tests/test_domain_dependencies.py` already carried
+the resolution that fixes this, written for the same defect in task 002.
+
+**Then it ran, and 34 mutants survived a suite with 100% changed-line
+coverage.** All 34 were in `tools/mutation_gate.py`; `src/domain`'s 129 were
+still all killed. The cause was one habit: the tests asserted with `x in
+output`, so a mutated message still contained the fragment being looked for.
+Task 001's nine survivors were the same shape — `pytest.raises` without
+`match=`, asserting that an exception was raised and never that it said
+anything.
+
+That is the fourth time in three tasks that a green result meant *not checked*
+rather than *checked*. The first three were layers that had not run: a `CI only`
+claim with no CI, a Mutation layer that had never produced a verdict anywhere,
+and the path bug above. **This one is different, and harder to see: the layer
+ran, and the tests were too weak to use it.** Every number looked right.
+
+**Reading the mutants beats guessing them.** mutmut's generation is pure AST
+work and does run on Windows once `platform.system`, the `resource` module and
+multiprocessing's `fork` context are stubbed, so `write_all_mutants_to_file`
+yields all 317 gate variants locally. Inspection only — nothing is executed, and
+Mutation stays `CI only`. The difference is measurable: 25 tests written by
+predicting mutations took 34 survivors to 13; 6 tests written after reading them
+took 13 to 0.
 
 ## What Task 002 found
 
@@ -222,32 +267,57 @@ obligation to say so directly, as a preference, since nothing can check it.
 
 ## Open findings against this project
 
-**The Mutation layer is flaky under CI runner speed.** The same tree passed
-129/129 twice, at 10.09 and 10.13 mutations/second, then reported
-`domain.hand.x__total_and_soft__mutmut_7: timeout` on a runner managing 4.71/s.
-SPEC 002 revision 2 ruled that a timeout fails the layer, reasoning that a mutant
-nobody tested is not a mutant the tests caught. That reasoning holds for
-`not-checked`, `skipped` and `no-tests`, which genuinely ran nothing. It does not
-hold for `timeout`: something ran, and it diverged from the baseline observably.
-The line was drawn too coarsely, and only real runner variance could show it.
-Task 003 fixes it. Until then `main` is intermittently red for a non-reason,
-which is exactly how a gate becomes decoration.
+**Closed by task 003:** the Mutation layer's flakiness under runner speed, and
+the `[tool.mutmut] paths_to_mutate` deprecation. A timed-out mutant is now
+retried on a doubled budget and judged on the retry; `source_paths` replaced the
+deprecated key.
 
-**`[tool.mutmut] paths_to_mutate` is deprecated** in favour of `source_paths`.
-A warning today. `pyproject.toml` was under `Do not modify` in SPEC 002.
+**The premise behind the first of those was never confirmed**, and should not
+harden into one by being repeated. CI run `33490174020`'s timeout was attributed
+to a runner at 4.71 mutations per second against ~10. mutmut's budget is
+`(estimated time + timeout_constant) × timeout_multiplier`, defaulting to `+1s`
+and `×15`; at roughly 0.1s per mutant that is a budget near 16 seconds, which a
+twofold slowdown does not obviously exhaust. The retry design does not rest on
+the premise — it decides rather than assumes — but nothing established what
+actually happened in that run.
 
 **The workflow's actions target Node 20**, which GitHub has deprecated;
 `actions/checkout@v4` and `astral-sh/setup-uv@v5` are being forced onto Node 24.
 
 ## Open findings against the baseline
 
-**None.** The one finding this section held — no convention for versioning a
-`BOOTSTRAP.md`-only change, which is why this file once said "now at general
-layer v2.4.1" while these files said v2.4.0 — was closed on 2026-09-15 and is
-recorded above. Stated rather than deleted: an empty section reads as an
-oversight, and `none` is a decision.
+**A status log cannot express "in progress", and no step requires looking for
+a branch.** `AGENTS.md` §13 defines this file as cross-task decisions plus one
+result line per task — a record of what finished. A task that has started and
+not merged has no place in it, so this file said "Task 003 is next" while task
+003 was implemented, gauntlet-green and awaiting CI on its branch. On 2026-09-15
+an agent read that line, took it as current, and wrote a duplicate SPEC 003 from
+scratch; the feasibility review it then commissioned spent a budget re-deriving
+findings the approved SPEC already contained. §2 step 1 creates the task branch
+before the SPEC is written, so a branch is the earliest durable evidence a task
+exists — and nothing tells the next reader to go and look.
+
+The previous entry here — no convention for versioning a `BOOTSTRAP.md`-only
+change, which is why this file once said "now at general layer v2.4.1" while
+these files said v2.4.0 — was closed on 2026-09-15 and is recorded above.
 
 ## Decisions
+
+**2026-09-15 — A timed-out mutant is retried on a doubled budget and judged on
+the retry.** Killed on retry, or timing out again on a larger budget, counts as
+killed; any other status is classified normally. Forgiving timeouts outright was
+rejected by the feasibility review, because a gate that does it returns green
+when *every* mutant times out — a layer reporting success having proved nothing.
+The status alone cannot separate a hanging mutant from a busy runner, so the
+gate makes them separate themselves. Retrying at the same budget is forbidden:
+that is a re-roll, not a decision.
+
+**2026-09-15 — The gate is subject to the gauntlet it gates.** `tools/` is in
+Types, Cleanup, changed-line coverage and mutation scope. Configuration alone
+would not have done it: `mypy src` ignores the configured `files` when a CLI
+target is given, and `vulture src tests` overrides the configured `paths`. The
+commands in `PROJECT.md` and in the workflow both changed, and they must not
+drift apart.
 
 **2026-09-15 — Claude invokes Codex directly; nothing is relayed through a
 human.** Adopted with general layer v2.7.0. The independence that matters comes
