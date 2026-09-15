@@ -13,7 +13,36 @@ from pathlib import Path
 import pytest
 from tools import mutation_gate
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+# The tree this suite is running in. Under mutmut that is the mutants/ copy, and
+# it must stay so: tools/ is in source_paths, so the gate under test is the
+# mutated one. Resolving out of the copy here would test the original file and
+# kill no mutant.
+RUN_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _repository_root() -> Path:
+    # mutmut copies only the source it mutates, so PROJECT.md, the workflow and
+    # pyproject.toml do not exist under mutants/. The gauntlet-scope scenarios
+    # are about the repository's own files and must read them where they are.
+    test_path = Path(__file__).resolve()
+    for parent in test_path.parents:
+        if parent.name == "mutants":
+            return parent.parent
+    return test_path.parents[1]
+
+
+REPOSITORY_ROOT = _repository_root()
+
+
+def _repository_text(relative: str) -> str:
+    path = REPOSITORY_ROOT / relative
+    assert path.is_file(), (
+        f"Repository root resolution failed: resolved {REPOSITORY_ROOT}; "
+        f"expected {path} to be an existing file"
+    )
+    return path.read_text(encoding="utf-8")
+
+
 RUN_OUTPUT = (
     "\r⠋ 129/129  🎉 129 🫥 0  ⏰ 0  🤔 0  🙁 0  🔇 0  🧙 0\n10.09 mutations/second\n"
 )
@@ -502,7 +531,7 @@ def test_script_guard_turns_configuration_failure_into_process_exit_one(
 
     with pytest.raises(SystemExit) as raised:
         runpy.run_path(
-            str(REPOSITORY_ROOT / "tools/mutation_gate.py"),
+            str(RUN_ROOT / "tools/mutation_gate.py"),
             run_name="__main__",
         )
 
@@ -515,10 +544,8 @@ def test_script_guard_turns_configuration_failure_into_process_exit_one(
 # The gate's own gauntlet-scope scenarios.
 def _project_and_workflow_text() -> tuple[str, str]:
     return (
-        (REPOSITORY_ROOT / "PROJECT.md").read_text(encoding="utf-8"),
-        (REPOSITORY_ROOT / ".github/workflows/gauntlet.yml").read_text(
-            encoding="utf-8"
-        ),
+        _repository_text("PROJECT.md"),
+        _repository_text(".github/workflows/gauntlet.yml"),
     )
 
 
@@ -547,17 +574,13 @@ def test_changed_line_coverage_includes_tools_in_project_and_workflow() -> None:
 
 
 def test_mutation_source_paths_include_domain_and_tools() -> None:
-    config = tomllib.loads(
-        (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    )
+    config = tomllib.loads(_repository_text("pyproject.toml"))
 
     assert config["tool"]["mutmut"]["source_paths"] == ["src/domain", "tools"]
 
 
 def test_gate_test_runs_in_normal_test_suite() -> None:
-    config = tomllib.loads(
-        (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    )
+    config = tomllib.loads(_repository_text("pyproject.toml"))
 
     assert config["tool"]["pytest"]["ini_options"]["testpaths"] == ["tests"]
     assert Path(__file__).parent.name == "tests"
@@ -565,9 +588,7 @@ def test_gate_test_runs_in_normal_test_suite() -> None:
 
 # Deprecation-removal scenarios.
 def test_mutmut_configuration_uses_source_paths_not_paths_to_mutate() -> None:
-    config = tomllib.loads(
-        (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    )["tool"]["mutmut"]
+    config = tomllib.loads(_repository_text("pyproject.toml"))["tool"]["mutmut"]
 
     assert "paths_to_mutate" not in config
     assert config["source_paths"] == ["src/domain", "tools"]
@@ -582,9 +603,7 @@ def test_mutation_step_invokes_gate_in_project_and_workflow() -> None:
 
 
 def test_vulture_configuration_includes_tools() -> None:
-    config = tomllib.loads(
-        (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    )
+    config = tomllib.loads(_repository_text("pyproject.toml"))
 
     assert config["tool"]["vulture"]["paths"] == ["src", "tests", "tools"]
 
@@ -611,8 +630,8 @@ raise SystemExit(9)
     )
 
     completed = subprocess.run(
-        [sys.executable, str(REPOSITORY_ROOT / "tools/mutation_gate.py")],
-        cwd=REPOSITORY_ROOT,
+        [sys.executable, str(RUN_ROOT / "tools/mutation_gate.py")],
+        cwd=RUN_ROOT,
         env=environment,
         capture_output=True,
         text=True,
