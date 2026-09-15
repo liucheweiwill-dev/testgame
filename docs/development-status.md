@@ -322,7 +322,7 @@ rule is fixed, deliberately, to keep the combination space testable.
 and add no structure.
 
 **2026-08-28 — Bootstrapped from `ai-sw-baseline`; updated to general layer
-v2.7.0 on 2026-09-15.** This project is also the baseline's first real
+v2.7.1 on 2026-09-15.** This project is also the baseline's first real
 execution. Defects found while running `BOOTSTRAP.md` (eight) and its update
 procedure (three) were reported back and fixed there across v2.2.0, v2.3.0 and
 v2.4.0, plus two `BOOTSTRAP.md`-only commits that moved no version line. One of

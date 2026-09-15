@@ -1,7 +1,7 @@
 # AGENTS.md — Dual-Agent Development Baseline
 
 <!-- ============================================================ -->
-<!-- GENERAL LAYER v2.7.0 — DO NOT EDIT.                          -->
+<!-- GENERAL LAYER v2.7.1 — DO NOT EDIT.                          -->
 <!-- Single source: https://github.com/liucheweiwill-dev/ai-sw-baseline                           -->
 <!-- MIT licensed. Copyright (c) 2026 Will. Full text: LICENSE in that repo. -->
 <!-- To update: replace this whole file verbatim. Never merge.     -->
@@ -355,6 +355,16 @@ this one, because it sees the revised SPEC and not the review that shaped it.
 For the Tier 3 verifier the four inputs below are assembled verbatim, never
 summarised. Claude choosing what the adversary is allowed to see is the one
 place this arrangement could quietly become theatre.
+
+**Check the call's own exit status, and never wrap it in a pipeline.** A
+`codex exec` that stopped partway — a quota, an auth failure, a dropped
+connection — can still leave the shell reporting success, and piping its output
+through anything replaces that status with the last command in the chain.
+`SETUP.md` §5 has carried this warning since the CLI was invoked by hand, and it
+binds harder now that Claude makes the calls: **a review that died silently and a
+review that found nothing look identical**, because both are an absence of
+findings. Before reading an empty result as *no objections*, confirm the run
+reached its end.
 
 **The feasibility review is read-only, and that is not a detail.** It happens
 before the human approves the SPEC (§2 step 3). Giving it write access lets an
