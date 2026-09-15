@@ -640,3 +640,255 @@ raise SystemExit(9)
 
     assert completed.returncode == 1
     assert "domain.x.y__mutmut_1: survived" in completed.stdout
+
+
+# Mutation-survivor scenarios. The first CI run that mutated tools/ left 34
+# survivors in this module: the scenarios above reach every branch, but assert
+# with substring checks, so a mutated message still contains what they look for.
+# These pin exact values instead.
+def _assert_malformed(line: str) -> None:
+    with pytest.raises(mutation_gate.GateError) as raised:
+        mutation_gate.parse_results(line)
+
+    assert str(raised.value) == f"malformed mutmut results line: {line!r}"
+
+
+def test_three_space_result_line_is_malformed() -> None:
+    _assert_malformed("   domain.x.y__mutmut_1: survived")
+
+
+def test_five_space_result_line_is_malformed() -> None:
+    _assert_malformed("     domain.x.y__mutmut_1: survived")
+
+
+def test_empty_mutant_name_is_malformed() -> None:
+    _assert_malformed("    : survived")
+
+
+def test_empty_status_is_malformed() -> None:
+    _assert_malformed("    domain.x.y__mutmut_1: ")
+
+
+def test_status_with_trailing_space_is_malformed() -> None:
+    _assert_malformed("    domain.x.y__mutmut_1: survived ")
+
+
+def test_blank_line_between_results_does_not_stop_parsing() -> None:
+    parsed = mutation_gate.parse_results(
+        "    domain.x.y__mutmut_1: survived\n\n    domain.x.y__mutmut_2: skipped\n"
+    )
+
+    assert parsed == [
+        ("domain.x.y__mutmut_1", "survived"),
+        ("domain.x.y__mutmut_2", "skipped"),
+    ]
+
+
+def test_results_keep_input_order_and_every_character_after_the_indent() -> None:
+    parsed = mutation_gate.parse_results("    b.m__mutmut_2: timeout\n    a: skipped\n")
+
+    assert parsed == [("b.m__mutmut_2", "timeout"), ("a", "skipped")]
+
+
+def test_generated_mutant_count_reads_the_last_summary_total() -> None:
+    run_output = "\r⠋ 3/7  🎉 3 🫥 0\n\r⠋ 11/23  🎉 11 🫥 0\n"
+
+    assert mutation_gate._generated_mutant_count(run_output) == 23
+
+
+def test_default_mutmut_command_is_exactly_mutmut(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("MUTATION_GATE_MUTMUT_COMMAND", raising=False)
+
+    assert mutation_gate._configured_mutmut_command() == ("mutmut",)
+
+
+def test_retry_command_runs_the_retry_program_with_the_factor_and_mutant() -> None:
+    assert mutation_gate._retry_command(MUTANT) == (
+        sys.executable,
+        "-c",
+        mutation_gate._RETRY_PROGRAM,
+        "2.0",
+        MUTANT,
+    )
+
+
+def test_retry_budget_returns_the_exact_rendered_transition() -> None:
+    reported = mutation_gate._retry_budget(_retry_run_output())
+
+    assert reported == "timeout_multiplier=15 -> 30"
+
+
+def test_two_reported_retry_budgets_fail() -> None:
+    with pytest.raises(mutation_gate.GateError) as raised:
+        mutation_gate._retry_budget(_retry_run_output() + _retry_run_output())
+
+    assert str(raised.value) == (
+        "timeout retry did not report exactly one raised budget"
+    )
+
+
+def test_print_messages_terminates_only_unterminated_messages() -> None:
+    output = StringIO()
+
+    mutation_gate._print_messages(["first", "second\n"], output)
+
+    assert output.getvalue() == "first\nsecond\n"
+
+
+def test_print_messages_writes_nothing_when_there_are_no_messages() -> None:
+    output = StringIO()
+
+    mutation_gate._print_messages([], output)
+
+    assert output.getvalue() == ""
+
+
+def test_failed_producer_terminates_unterminated_stderr() -> None:
+    runner = StubRunner(_completed(returncode=3, stderr="stderr tail"))
+    output = StringIO()
+
+    exit_code = mutation_gate.run_gate(runner=runner, output=output)
+
+    assert exit_code == 1
+    assert output.getvalue() == "mutmut run failed with exit code 3\nstderr tail\n"
+
+
+def test_failed_producer_preserves_terminated_stderr() -> None:
+    runner = StubRunner(_completed(returncode=3, stderr="stderr tail\n"))
+    output = StringIO()
+
+    exit_code = mutation_gate.run_gate(runner=runner, output=output)
+
+    assert exit_code == 1
+    assert output.getvalue() == "mutmut run failed with exit code 3\nstderr tail\n"
+
+
+def test_results_producer_failure_names_the_results_stage() -> None:
+    runner = StubRunner(_completed(stdout=RUN_OUTPUT), _completed(returncode=5))
+    output = StringIO()
+
+    exit_code = mutation_gate.run_gate(runner=runner, output=output)
+
+    assert exit_code == 1
+    assert output.getvalue() == "mutmut results failed with exit code 5\n"
+
+
+def test_passing_gate_prints_only_the_exact_summary_line() -> None:
+    exit_code, output, runner = _run_gate("")
+
+    assert exit_code == 0
+    assert output == "mutation gate passed: 129 mutants generated\n"
+    assert runner.calls == [("mutmut", "run"), ("mutmut", "results")]
+
+
+def test_zero_generated_mutants_prints_only_the_exact_failure_line() -> None:
+    exit_code, output, _ = _run_gate("", run_output=ZERO_MUTANTS_RUN_OUTPUT)
+
+    assert exit_code == 1
+    assert output == "mutation gate failed: no mutants were generated\n"
+
+
+def test_retry_note_for_a_killed_retry_is_exact() -> None:
+    exit_code, output, runner = _run_gate(
+        _result_line("timeout"),
+        _completed(stdout=_retry_run_output()),
+        _completed(stdout=""),
+    )
+
+    assert exit_code == 0
+    assert output == (
+        f"    {MUTANT}: timeout; retry outcome: killed; "
+        "timeout_multiplier=15 -> 30\n"
+        "mutation gate passed: 129 mutants generated\n"
+    )
+    assert runner.calls == [
+        ("mutmut", "run"),
+        ("mutmut", "results"),
+        mutation_gate._retry_command(MUTANT),
+        ("mutmut", "results"),
+    ]
+
+
+def test_retry_note_for_a_second_timeout_is_exact() -> None:
+    exit_code, output, _ = _run_gate(
+        _result_line("timeout"),
+        _completed(stdout=_retry_run_output()),
+        _completed(stdout=_result_line("timeout")),
+    )
+
+    assert exit_code == 0
+    assert output == (
+        f"    {MUTANT}: timeout; retry outcome: timeout (counted as killed); "
+        "timeout_multiplier=15 -> 30\n"
+        "mutation gate passed: 129 mutants generated\n"
+    )
+
+
+def test_retry_resolving_to_survived_fails_and_lists_the_mutant_twice() -> None:
+    exit_code, output, _ = _run_gate(
+        _result_line("timeout"),
+        _completed(stdout=_retry_run_output()),
+        _completed(stdout=_result_line("survived")),
+    )
+
+    assert exit_code == 1
+    assert output == (
+        f"    {MUTANT}: timeout; retry outcome: survived; "
+        "timeout_multiplier=15 -> 30\n"
+        f"    {MUTANT}: survived\n"
+    )
+
+
+def test_mutant_absent_from_retry_results_counts_as_killed() -> None:
+    exit_code, output, _ = _run_gate(
+        _result_line("timeout"),
+        _completed(stdout=_retry_run_output()),
+        _completed(stdout=_result_line("survived", mutant="other.m__mutmut_9")),
+    )
+
+    assert exit_code == 0
+    assert output == (
+        f"    {MUTANT}: timeout; retry outcome: killed; "
+        "timeout_multiplier=15 -> 30\n"
+        "mutation gate passed: 129 mutants generated\n"
+    )
+
+
+def test_retry_notes_are_printed_before_failures() -> None:
+    exit_code, output, _ = _run_gate(
+        _result_line("survived", mutant="a__mutmut_1")
+        + _result_line("timeout", mutant="b__mutmut_2"),
+        _completed(stdout=_retry_run_output()),
+        _completed(stdout=""),
+    )
+
+    assert exit_code == 1
+    assert output == (
+        "    b__mutmut_2: timeout; retry outcome: killed; "
+        "timeout_multiplier=15 -> 30\n"
+        "    a__mutmut_1: survived\n"
+    )
+
+
+def test_run_command_does_not_mutate_the_parent_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PYTHONIOENCODING", raising=False)
+    seen: list[dict[str, str]] = []
+
+    def stub_subprocess_run(
+        command: Sequence[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        environment = kwargs["env"]
+        assert isinstance(environment, dict)
+        seen.append(dict(environment))
+        return _completed()
+
+    monkeypatch.setattr(mutation_gate.subprocess, "run", stub_subprocess_run)
+
+    mutation_gate._run_command(("mutmut", "run"))
+
+    assert seen[0]["PYTHONIOENCODING"] == "utf-8"
+    assert "PYTHONIOENCODING" not in os.environ
