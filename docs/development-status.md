@@ -309,6 +309,10 @@ and add no structure.
 **2026-08-28 — Bootstrapped from `ai-sw-baseline`; updated to general layer
 v2.6.0 on 2026-09-15.** This project is also the baseline's first real
 execution. Defects found while running `BOOTSTRAP.md` (eight) and its update
-procedure (three) were reported back and fixed there across v2.2.0, v2.3.0,
-v2.4.0, v2.4.1 and the update-procedure repair that followed v2.5.1. Task 001's full run added eleven more, fixed in v2.5.0, and
-the "money" wording it had been reading narrowly was fixed in v2.5.1.
+procedure (three) were reported back and fixed there across v2.2.0, v2.3.0 and
+v2.4.0, plus two `BOOTSTRAP.md`-only commits that moved no version line. One of
+those was titled "v2.4.1" — a release no file has ever recorded and the
+baseline's tags do not contain; the convention forbidding such a title was
+written down later, on 2026-09-15. Task 001's full run added eleven more, fixed
+in v2.5.0, and the "money" wording it had been reading narrowly was fixed in
+v2.5.1.
